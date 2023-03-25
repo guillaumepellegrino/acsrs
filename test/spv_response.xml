@@ -1,0 +1,9 @@
+<soapenv:Envelope soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cwmp="urn:dslforum-org:cwmp-1-0"><soapenv:Header>
+<cwmp:ID soapenv:mustUnderstand="1">294</cwmp:ID>
+</soapenv:Header>
+<soapenv:Body>
+<cwmp:SetParameterValuesResponse>
+<Status>0</Status>
+</cwmp:SetParameterValuesResponse>
+</soapenv:Body>
+</soapenv:Envelope>

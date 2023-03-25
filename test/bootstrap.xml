@@ -1,0 +1,45 @@
+<soapenv:Envelope soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cwmp="urn:dslforum-org:cwmp-1-0"><soapenv:Header>
+<cwmp:ID soapenv:mustUnderstand="1">515</cwmp:ID>
+</soapenv:Header>
+<soapenv:Body>
+<cwmp:Inform>
+<DeviceId>
+<Manufacturer>$MANUFACTURER</Manufacturer>
+<OUI>CAFE12</OUI>
+<ProductClass>$PRODUCT_CLASS</ProductClass>
+<SerialNumber>$SERIAL_NUMBER</SerialNumber>
+</DeviceId>
+<Event soapenv:arrayType="cwmp:EventStruct[01]">
+<EventStruct>
+<EventCode>0 BOOTSTRAP</EventCode>
+<CommandKey></CommandKey>
+</EventStruct>
+</Event>
+<MaxEnvelopes>1</MaxEnvelopes>
+<CurrentTime>2023-03-22T15:54:27Z</CurrentTime>
+<RetryCount>0</RetryCount>
+<ParameterList soapenv:arrayType="cwmp:ParameterValueStruct[12]">
+<ParameterValueStruct>
+<Name>Device.IP.Interface.1.IPv4Address.1.IPAddress</Name>
+<Value xsi:type="xsd:string">192.168.1.1</Value>
+</ParameterValueStruct>
+<ParameterValueStruct>
+<Name>Device.ManagementServer.AliasBasedAddressing</Name>
+<Value xsi:type="xsd:boolean">1</Value>
+</ParameterValueStruct>
+<ParameterValueStruct>
+<Name>Device.ManagementServer.ConnectionRequestURL</Name>
+<Value xsi:type="xsd:string">http://192.168.1.1:7547/rnmDInfGzCpBvacM</Value>
+</ParameterValueStruct>
+<ParameterValueStruct>
+<Name>Device.ManagementServer.ParameterKey</Name>
+<Value xsi:type="xsd:string"></Value>
+</ParameterValueStruct>
+<ParameterValueStruct>
+<Name>Device.RootDataModelVersion</Name>
+<Value xsi:type="xsd:string">2.12</Value>
+</ParameterValueStruct>
+</ParameterList>
+</cwmp:Inform>
+</soapenv:Body>
+</soapenv:Envelope>
