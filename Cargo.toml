@@ -7,14 +7,12 @@ edition = "2021"
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 reqwest = "*"
+quick-xml = { version = "*", features = ["async-tokio", "serialize"] }
+serde = { version = "*", features = ["derive"] }
 digest_auth = "*"
 http-body-util = "0.1.0-rc.2" 
 bytes = "*"
 futures = "*"
-quick-xml = { version = "*", features = ["async-tokio", "serialize"] }
-serde = { version = "*", features = ["derive"] }
-serde_derive = "*"
-serde-value = "*"
 rand = "*"
 regex = "*"
 base64 = "*"
