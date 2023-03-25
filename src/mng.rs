@@ -16,17 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 use std::sync::{Arc};
-use std::net::SocketAddr;
-use std::collections::VecDeque;
-use std::collections::HashMap;
 use bytes::Bytes;
 use http_body_util::{Full};
 use tokio;
 use tokio::sync::{RwLock};
 use tokio::time::{Duration, timeout};
-use tokio::net::TcpListener;
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use regex::Regex;
 use crate::acs::{*};

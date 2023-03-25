@@ -18,7 +18,6 @@
 use bytes::Bytes;
 use http_body_util::{Full, BodyExt};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
-
 use crate::soap;
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
