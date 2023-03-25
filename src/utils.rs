@@ -16,8 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::{Full, BodyExt};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
+
 use crate::soap;
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
@@ -58,5 +59,10 @@ pub fn reply_error(err: Box<dyn std::error::Error>) -> Result<Response<Full<Byte
     Ok(Response::builder()
         .status(500)
         .body(Full::new(Bytes::from(reply))).unwrap())
+}
+
+pub async fn content(req: &mut Request<IncomingBody>) -> Result<String, Box<dyn std::error::Error>> {
+    let body = req.collect().await?.to_bytes();
+    Ok(String::from_utf8(body.to_vec())?)
 }
 
