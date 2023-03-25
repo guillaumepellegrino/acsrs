@@ -6,6 +6,7 @@ version = 3
 name = "acsrs"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bytes",
  "digest_auth",
  "futures",

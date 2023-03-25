@@ -32,6 +32,7 @@ use hyper::{body::Incoming as IncomingBody, Request, Response};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use regex::Regex;
+use base64::Engine;
 
 mod soap;
 
@@ -119,12 +120,21 @@ struct CPE {
 
 #[derive(Default)]
 struct Acs {
+    basicauth: String,
     cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
 }
 
 impl Acs {
-    fn new() -> Self {
-        Self::default()
+    fn new(username: &str, password: &str) -> Self {
+        let mut acs = Self::default();
+        acs.basicauth = Self::basicauth(username, password);
+        acs
+    }
+
+    fn basicauth(username: &str, password: &str) -> String {
+        let token = format!("{}:{}", username, password);
+        let token64 = base64::engine::general_purpose::STANDARD.encode(&token);
+        format!("Basic {}", token64)
     }
 }
 
@@ -302,14 +312,39 @@ impl Session {
         return self.cpe_check_transfers().await;
     }
 
+    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+
+        match req.headers().get("authorization") {
+            Some(wwwauth) => {
+                let wwwauth = wwwauth.to_str()?;
+                if wwwauth == &self.acs.read().await.basicauth {
+                    self.handle_cpe_request(req).await
+                }
+                else {
+                    Self::reply(403, String::from("Forbidden\n"))
+                }
+            }
+            None => {
+                println!("auth required!");
+                let response = String::from("Authorization required\n");
+                let builder = Response::builder()
+                    .header("User-Agent", "acsrs")
+                    .header("WWW-Authenticate", "Basic realm=\"acrsrs world\"")
+                    .status(401);
+                Ok(builder.body(Full::new(Bytes::from(response)))?)
+            }
+        }
+    }
+
+
     async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, hyper::Error> {
         let reply = match req.uri().path() {
-            "/cwmpWeb/CPEMgt" => self.handle_cpe_request(req).await,
-            _        => Self::reply(403, String::from("Forbidden\n")),
+            "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
+            _                 => Self::reply(403, String::from("Forbidden\n")),
         };
 
         match reply {
-            Ok(reply) => Ok(reply),
+            Ok(reply)  => Ok(reply),
             Err(error) => Self::reply_error(error),
         }
     }
@@ -444,7 +479,22 @@ async fn handle_mng_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
 
 #[tokio::main]
 async fn main() {
-    let cpe_acs = Arc::new(RwLock::new(Acs::new()));
+    let username = match std::env::var("ACS_USERNAME") {
+        Ok(value) => value,
+        Err(_) => {
+            println!("Please provide ACS_USERNAME and ACS_PASSWORD as env variables");
+            return;
+        }
+    };
+    let password = match std::env::var("ACS_PASSWORD") {
+        Ok(value) => value,
+        Err(_) => {
+            println!("Please provide ACS_USERNAME and ACS_PASSWORD as env variables");
+            return;
+        }
+    };
+
+    let cpe_acs = Arc::new(RwLock::new(Acs::new(&username, &password)));
     let cpe_addr: SocketAddr = ([0, 0, 0, 0], 8443).into();
     let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
 
