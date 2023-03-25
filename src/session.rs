@@ -1,14 +1,26 @@
+/*
+ * Copyright (C) 2023 Guillaume Pellegrino
+ * This file is part of acsrs <https://github.com/guillaumepellegrino/acsrs>.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 use std::sync::{Arc};
-use std::collections::VecDeque;
-use std::collections::HashMap;
 use bytes::Bytes;
 use http_body_util::Full;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
-use base64::Engine;
 use crate::acs::{*};
 use crate::soap;
 use crate::utils;
