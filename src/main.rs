@@ -35,6 +35,7 @@ use regex::Regex;
 use base64::Engine;
 
 mod soap;
+mod utils;
 
 #[derive(Debug)]
 enum Error {
@@ -155,47 +156,6 @@ impl Session {
         }
     }
 
-    fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
-        let mut i = 0;
-        let mut split = req.uri().path().split('/');
-
-        while i < num {
-            split.next();
-            i += 1;
-        }
-
-        match split.next() {
-            Some(path) => String::from(path),
-            None => String::from(""),
-        }
-    }
-
-    fn reply(statuscode: u16, response: String) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
-        let builder = Response::builder()
-            .header("User-Agent", "acsrs")
-            .status(statuscode);
-        let reply = builder.body(Full::new(Bytes::from(response)))?;
-        Ok(reply)
-    }
-
-    fn reply_xml(response: &soap::Envelope) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
-        //Self::reply(200, quick_xml::se::to_string(&response)?)
-        let text = quick_xml::se::to_string(&response)?;
-        let builder = Response::builder()
-            .header("User-Agent", "acsrs")
-            .header("Content-type", "text/xml; charset=\"utf-8\"");
-        let reply = builder.body(Full::new(Bytes::from(text)))?;
-        Ok(reply)
-    }
-
-    fn reply_error(err: Box<dyn std::error::Error>) -> Result<Response<Full<Bytes>>, hyper::Error> {
-        let reply = format!("Server internal error: {:?}\n", err);
-        println!("{}", reply);
-        Ok(Response::builder()
-            .status(401)
-            .body(Full::new(Bytes::from(reply))).unwrap())
-    }
-
     async fn cpe_handle_inform(self: &mut Self, inform: &soap::Inform) {
         let connreq_url = match inform.parameter_list.get_value("Device.ManagementServer.ConnectionRequestURL") {
             Some(value) => value,
@@ -227,7 +187,7 @@ impl Session {
             Some(cpe) => cpe.write().await,
             None => {
                 println!("Unknown CPE: Reply with no content");
-                return Self::reply(204, String::from(""));
+                return utils::reply(204, String::from(""));
             }
         };
 
@@ -235,7 +195,7 @@ impl Session {
             Some(transfer) => transfer,
             None => {
                 println!("No pending transfer for CPE: Reply with no content");
-                return Self::reply(204, String::from(""));
+                return utils::reply(204, String::from(""));
             }
         };
         transfer.msg.header.id.text = self.id;
@@ -243,7 +203,7 @@ impl Session {
         drop(cpe);
 
         println!("Transfer pending message");
-        return Self::reply_xml(&transfer.msg);
+        return utils::reply_xml(&transfer.msg);
     }
 
     async fn content(req: &mut Request<IncomingBody>) -> Result<String, Box<dyn std::error::Error>> {
@@ -269,7 +229,7 @@ impl Session {
             Err(e) => {
                 println!("Failed to parse XML: {:?}", e);
                 println!("Content: [\n{}\n]\nContent End", content);
-                return Self::reply(204, String::from(""));
+                return utils::reply(204, String::from(""));
             },
         };
 
@@ -286,7 +246,7 @@ impl Session {
 
             let mut response = soap::Envelope::new(envelope.id());
             response.add_inform_response();
-            return Self::reply_xml(&response);
+            return utils::reply_xml(&response);
         }
         else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
             println!("GPV Response");
@@ -296,7 +256,7 @@ impl Session {
         }
         else {
             println!("Unknown SOAP/xml request: {}", content);
-            return Self::reply(204, String::from(""));
+            return utils::reply(204, String::from(""));
         }
 
         // If someone if observing the current Transfer,
@@ -321,7 +281,7 @@ impl Session {
                     self.handle_cpe_request(req).await
                 }
                 else {
-                    Self::reply(403, String::from("Forbidden\n"))
+                    utils::reply(403, String::from("Forbidden\n"))
                 }
             }
             None => {
@@ -340,23 +300,23 @@ impl Session {
     async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, hyper::Error> {
         let reply = match req.uri().path() {
             "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
-            _                 => Self::reply(403, String::from("Forbidden\n")),
+            _                 => utils::reply(403, String::from("Forbidden\n")),
         };
 
         match reply {
             Ok(reply)  => Ok(reply),
-            Err(error) => Self::reply_error(error),
+            Err(error) => utils::reply_error(error),
         }
     }
 }
 
 async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let content = Session::content(req).await?;
-    let serial_number = Session::req_path(req, 2);
+    let serial_number = utils::req_path(req, 2);
     let acs = acs.read().await;
     let mut cpe = match &acs.cpe_list.get(&serial_number) {
         Some(cpe) => cpe.write().await,
-        None => {return Session::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
+        None => {return utils::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
     };
     let connreq = cpe.connreq.clone();
 
@@ -379,23 +339,23 @@ async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
                 for pv in &response.parameter_list.parameter_values {
                     s += &format!("{}={}\n", pv.name, pv.value.text);
                 }
-                return Session::reply(200, s);
+                return utils::reply(200, s);
             }
             None => {
-                return Session::reply(404, format!("Bad response from {}\n", serial_number));
+                return utils::reply(404, format!("Bad response from {}\n", serial_number));
             }
         }
     }
-    return Session::reply(404, format!("GPV Timeout for {}: {}\n", serial_number, connreq.url));
+    return utils::reply(404, format!("GPV Timeout for {}: {}\n", serial_number, connreq.url));
 }
 
 async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let content = Session::content(req).await?;
-    let serial_number = Session::req_path(req, 2);
+    let serial_number = utils::req_path(req, 2);
     let acs = acs.read().await;
     let mut cpe = match &acs.cpe_list.get(&serial_number) {
         Some(cpe) => cpe.write().await,
-        None => {return Session::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
+        None => {return utils::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
     };
     let connreq = cpe.connreq.clone();
 
@@ -424,14 +384,14 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
             Some(response) => {
                 let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
                 s += &format!("Status: {}", response.status);
-                return Session::reply(200, s);
+                return utils::reply(200, s);
             }
             None => {
-                return Session::reply(404, format!("Bad response from {}\n", serial_number));
+                return utils::reply(404, format!("Bad response from {}\n", serial_number));
             }
         }
     }
-    return Session::reply(404, format!("SPV Timeout for {}: {}\n", serial_number, connreq.url));
+    return utils::reply(404, format!("SPV Timeout for {}: {}\n", serial_number, connreq.url));
 }
 
 async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
@@ -442,27 +402,27 @@ async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingB
         let cpe = cpe.read().await;
         s += &format!("{} - {} - {} - {} \n", sn, cpe.connreq.url, cpe.connreq.username, cpe.connreq.password);
     }
-    Session::reply(200, s)
+    utils::reply(200, s)
 }
 
 async fn handle_stats_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let s = format!("Stats not implemented");
-    Session::reply(200, s)
+    utils::reply(200, s)
 }
 
 async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let s = format!("Welcome on ACS Server\n");
-    Session::reply(200, s)
+    utils::reply(200, s)
 }
 
 async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let s = format!("Unknown request: {}\n", req.uri());
-    Session::reply(404, s)
+    utils::reply(404, s)
 }
 
 
 async fn handle_mng_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, hyper::Error> {
-    let reply = match Session::req_path(&req, 1).as_str() {
+    let reply = match utils::req_path(&req, 1).as_str() {
         "gpv"   => handle_gpv_request(acs, req).await,
         "spv"   => handle_spv_request(acs, req).await,
         "list"  => handle_list_request(acs, req).await,
@@ -473,7 +433,7 @@ async fn handle_mng_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
 
     match reply {
         Ok(reply) => Ok(reply),
-        Err(error) => Session::reply_error(error),
+        Err(error) => utils::reply_error(error),
     }
 }
 
