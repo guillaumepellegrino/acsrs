@@ -15,10 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-mod soap;
-mod utils;
 mod acs;
 mod mng;
+mod session;
+mod soap;
+mod utils;
 
 use std::sync::{Arc};
 use std::net::SocketAddr;
@@ -30,6 +31,7 @@ use hyper::service::service_fn;
 use hyper::{Request};
 
 use crate::acs::{*};
+use crate::session::{*};
 
 #[tokio::main]
 async fn main() {
