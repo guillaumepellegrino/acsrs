@@ -24,7 +24,7 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use base64::Engine;
 use crate::soap;
-
+use crate::db;
 
 
 #[derive(Debug)]
@@ -55,6 +55,7 @@ pub struct CPE {
 pub struct Acs {
     pub basicauth: String,
     pub cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
+    savefile: std::path::PathBuf,
 }
 
 impl std::fmt::Display for Error {
@@ -116,9 +117,10 @@ impl Connreq {
 }
 
 impl Acs {
-    pub fn new(username: &str, password: &str) -> Self {
+    pub fn new(username: &str, password: &str, savefile: &std::path::Path) -> Self {
         let mut acs = Self::default();
         acs.basicauth = Self::basicauth(username, password);
+        acs.savefile = savefile.to_path_buf();
         acs
     }
 
@@ -127,5 +129,68 @@ impl Acs {
         let token64 = base64::engine::general_purpose::STANDARD.encode(&token);
         format!("Basic {}", token64)
     }
+
+    pub async fn save_at(self: &Self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Save ACS config at {:?}", path);
+
+        let mut db = db::Acs::default();
+        db.basicauth = self.basicauth.clone();
+
+        for (sn, cpe) in &self.cpe_list {
+            let cpe = cpe.read().await;
+            let elem = db::CPE {
+                serial_number: sn.clone(),
+                url: cpe.connreq.url.clone(),
+                username: cpe.connreq.username.clone(),
+                password: cpe.connreq.password.clone(),
+            };
+            db.cpe.push(elem);
+        }
+
+        db.save(path)
+    }
+
+    pub async fn save(self: &Self) -> Result<(), Box<dyn std::error::Error>> {
+        self.save_at(&self.savefile).await
+    }
+
+    pub async fn restore(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let db = db::Acs::restore(path)?;
+        let mut acs = Self::default();
+        acs.basicauth = db.basicauth.clone();
+
+        for elem in &db.cpe {
+            let mut cpe = CPE::default();
+            cpe.device_id.serial_number = elem.serial_number.clone();
+            cpe.connreq.url = elem.url.clone();
+            cpe.connreq.username = elem.username.clone();
+            cpe.connreq.password = elem.password.clone();
+            acs.cpe_list.insert(elem.serial_number.clone(), Arc::new(RwLock::new(cpe)));
+        }
+
+        Ok(acs)
+    }
 }
 
+#[tokio::test]
+async fn test_acs_save_restore() {
+    let savefile = std::path::PathBuf::from("/tmp/acs.toml");
+    let username = "toto";
+    let password = "Martin";
+    let mut acs = Acs::new(username, password);
+
+    let mut cpe1 = CPE::default();
+    cpe1.connreq.url = String::from("http://192.168.1.X:7547/CPE1");
+    acs.cpe_list.insert("CPE1_SN".to_string(), Arc::new(RwLock::new(cpe1)));
+
+    let mut cpe2 = CPE::default();
+    cpe2.connreq.url = String::from("http://192.168.1.X:7547/CPE2");
+    acs.cpe_list.insert("CPE2_SN".to_string(), Arc::new(RwLock::new(cpe2)));
+
+    acs.save_at(&savefile).await.unwrap();
+
+    let restored = Acs::restore(&savefile).await.unwrap();
+    assert_eq!(&restored.basicauth, &acs.basicauth);
+    assert_eq!(&restored.cpe_list["CPE1_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE1");
+    assert_eq!(&restored.cpe_list["CPE2_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE2");
+}

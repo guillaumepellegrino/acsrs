@@ -65,6 +65,14 @@ impl Session {
             spv.push(soap::ParameterValue::new(
                 "Device.ManagementServer.ConnectionRequestPassword", "xsd:string", &cpe.connreq.password));
             cpe.transfers.push_back(transfer);
+
+            // Save configuration in a dedicated task
+            let acs = self.acs.clone();
+            tokio::task::spawn(async move {
+                if let Err(err) = acs.read().await.save().await {
+                    println!("Failed to save ACS config: {:?}", err);
+                }
+            });
         }
     }
 

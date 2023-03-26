@@ -20,6 +20,7 @@ mod mng;
 mod session;
 mod soap;
 mod utils;
+mod db;
 
 use std::sync::{Arc};
 use std::net::SocketAddr;
@@ -32,28 +33,54 @@ use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
 
-#[tokio::main]
-async fn main() {
+fn home() -> std::path::PathBuf {
+    let home = std::env::var("HOME").expect("Failed to get HOME directory");
+    std::path::Path::new(&home).to_path_buf()
+}
+
+fn get_username_and_password() -> (String, String) {
     let username = match std::env::var("ACS_USERNAME") {
         Ok(value) => value,
         Err(_) => {
             println!("Please provide ACS_USERNAME and ACS_PASSWORD as env variables");
-            return;
+            panic!();
         }
     };
     let password = match std::env::var("ACS_PASSWORD") {
         Ok(value) => value,
         Err(_) => {
             println!("Please provide ACS_USERNAME and ACS_PASSWORD as env variables");
-            return;
+            panic!();
         }
     };
 
-    let cpe_acs = Arc::new(RwLock::new(Acs::new(&username, &password)));
+    (username, password)
+}
+
+#[tokio::main]
+async fn main() {
+    let savefile = home().join(".acsrs.toml");
+    let acs = match Acs::restore(&savefile).await {
+        Ok(acs) => {
+            println!("ACS config restored from {:?}", savefile);
+            Arc::new(RwLock::new(acs))
+        },
+        Err(err) => {
+            println!("Could not restore ACS config from {:?}: {:?}", savefile, err);
+            let (username, password) = get_username_and_password();
+            let acs = Arc::new(RwLock::new(Acs::new(&username, &password, &savefile)));
+            if let Err(err) = acs.read().await.save().await {
+                println!("Failed to save ACS config to {:?}: {:?}", savefile, err);
+            }
+            acs
+        },
+    };
+
+    let cpe_acs = acs.clone();
     let cpe_addr: SocketAddr = ([0, 0, 0, 0], 8443).into();
     let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
 
-    let mng_acs = cpe_acs.clone();
+    let mng_acs = acs;
     let mng_addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
     let mng_listener = TcpListener::bind(mng_addr).await.unwrap();
 

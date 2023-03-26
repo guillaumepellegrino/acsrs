@@ -1,0 +1,55 @@
+/*
+ * Copyright (C) 2023 Guillaume Pellegrino
+ * This file is part of acsrs <https://github.com/guillaumepellegrino/acsrs>.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+use serde::{Deserialize, Serialize};
+use std::io::Write;
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct CPE {
+    pub serial_number: String,
+    pub url: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct Acs {
+    pub basicauth: String,
+    pub cpe: Vec<CPE>,
+}
+
+impl Acs {
+    /**
+     * Save ACS configuration to TOML file specified by path
+     */
+    pub fn save(self: &Self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = std::fs::File::create(path)?;
+        let string = toml::to_string(self)?;
+        file.write_all(string.as_bytes())?;
+        Ok(())
+    }
+
+    /**
+     * Restore ACS configuration from TOML file specified by path
+     */
+    pub fn restore(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let string = std::fs::read_to_string(path)?;
+        let acs: Acs = toml::from_str(&string)?;
+        Ok(acs)
+    }
+}
+
