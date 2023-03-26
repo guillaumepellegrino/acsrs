@@ -49,21 +49,30 @@ async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     drop(acs);
 
     connreq.send().await?;
-    if let Some(response) = timeout(Duration::from_millis(10*1000), rx.recv()).await? {
+    let mut s = format!("> GetParameterValuesResponse from {}:\n", serial_number);
+    if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
+        if let Some(fault) = response.body.fault.first() {
+            s += &format!("Fault: {} - {}\n",
+                fault.detail.cwmpfault.faultcode.text,
+                fault.detail.cwmpfault.faultstring.text);
+            return utils::reply(400, s);
+        }
         match response.body.gpv_response.first() {
             Some(response) => {
-                let mut s = format!("> GetParameterValuesResponse from {}:\n", serial_number);
                 for pv in &response.parameter_list.parameter_values {
                     s += &format!("{}={}\n", pv.name, pv.value.text);
                 }
                 return utils::reply(200, s);
             }
             None => {
-                return utils::reply(404, format!("Bad response from {}\n", serial_number));
+                s += &format!("Error: Failed to get response from {}\n", connreq.url);
+                return utils::reply(404, s);
             }
         }
     }
-    return utils::reply(404, format!("GPV Timeout for {}: {}\n", serial_number, connreq.url));
+
+    s += &format!("Timeout: No reply from {}\n", connreq.url);
+    return utils::reply(404, s);
 }
 
 async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
@@ -96,19 +105,28 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     drop(acs);
 
     connreq.send().await?;
-    if let Some(response) = timeout(Duration::from_millis(10*1000), rx.recv()).await? {
+    let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
+    if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
+        if let Some(fault) = response.body.fault.first() {
+            s += &format!("Fault: {} - {}\n",
+                fault.detail.cwmpfault.faultcode.text,
+                fault.detail.cwmpfault.faultstring.text);
+            return utils::reply(400, s);
+        }
         match response.body.spv_response.first() {
             Some(response) => {
-                let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
                 s += &format!("Status: {}\n", response.status);
                 return utils::reply(200, s);
             }
             None => {
-                return utils::reply(404, format!("Bad response from {}\n", serial_number));
+                s += &format!("Error: Failed to get response from {}\n", connreq.url);
+                return utils::reply(404, s);
             }
         }
     }
-    return utils::reply(404, format!("SPV Timeout for {}: {}\n", serial_number, connreq.url));
+
+    s += &format!("Timeout: No reply from {}\n", connreq.url);
+    return utils::reply(404, s);
 }
 
 async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {

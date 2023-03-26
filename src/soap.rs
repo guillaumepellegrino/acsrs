@@ -213,6 +213,39 @@ pub struct SetParameterValuesResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct CwmpFault {
+    #[serde(rename = "FaultCode")]
+    #[serde(default)]
+    pub faultcode: Value,
+
+    #[serde(rename = "FaultString")]
+    #[serde(default)]
+    pub faultstring: Value,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct SoapFaultDetail {
+    #[serde(rename(serialize = "cwmp:Fault", deserialize = "Fault"))]
+    #[serde(default)]
+    pub cwmpfault: CwmpFault
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct SoapFault {
+    #[serde(rename = "faultcode")]
+    #[serde(default)]
+    pub faultcode: String,
+
+    #[serde(rename = "faultstring")]
+    #[serde(default)]
+    pub faultstring: String,
+
+    #[serde(rename = "detail")]
+    #[serde(default)]
+    pub detail: SoapFaultDetail,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Body {
     #[serde(rename = "Inform")]
     #[serde(default)]
@@ -237,6 +270,10 @@ pub struct Body {
     #[serde(rename(serialize = "cwmp:SetParameterValuesResponse", deserialize = "SetParameterValuesResponse"))]
     #[serde(default)]
     pub spv_response: Vec<SetParameterValuesResponse>,
+
+    #[serde(rename(serialize = "soapenv:Fault", deserialize = "Fault"))]
+    #[serde(default)]
+    pub fault: Vec<SoapFault>
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]

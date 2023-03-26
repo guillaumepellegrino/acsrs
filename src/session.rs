@@ -143,6 +143,11 @@ impl Session {
         else if let Some(spv_response) = envelope.body.spv_response.first() {
             println!("SPV Response: {}", spv_response.status);
         }
+        else if let Some(fault) = envelope.body.fault.first() {
+            println!("Fault: {} - {}",
+                fault.detail.cwmpfault.faultcode.text,
+                fault.detail.cwmpfault.faultstring.text);
+        }
         else {
             println!("Unknown SOAP/xml request: {}", content);
             return utils::reply(204, String::from(""));

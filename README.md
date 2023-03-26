@@ -11,7 +11,6 @@ Supported features are:
 
 Some limitations are:
 - This ACS server is unsecure: HTTPs is not yet implemented
-- SOAP errors are not forwarded to curl
 - There are no notifications mechanism implemented
 - It may not be fully compliant with TR-069 standard
 
