@@ -53,6 +53,8 @@ pub struct CPE {
 
 #[derive(Default)]
 pub struct Acs {
+    pub username: String,
+    pub password: String,
     pub basicauth: String,
     pub cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
     savefile: std::path::PathBuf,
@@ -119,6 +121,8 @@ impl Connreq {
 impl Acs {
     pub fn new(username: &str, password: &str, savefile: &std::path::Path) -> Self {
         let mut acs = Self::default();
+        acs.username = String::from(username);
+        acs.password = String::from(password);
         acs.basicauth = Self::basicauth(username, password);
         acs.savefile = savefile.to_path_buf();
         acs
@@ -134,7 +138,8 @@ impl Acs {
         println!("Save ACS config at {:?}", path);
 
         let mut db = db::Acs::default();
-        db.basicauth = self.basicauth.clone();
+        db.username = self.username.clone();
+        db.password = self.password.clone();
 
         for (sn, cpe) in &self.cpe_list {
             let cpe = cpe.read().await;
@@ -157,7 +162,9 @@ impl Acs {
     pub async fn restore(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
         let db = db::Acs::restore(path)?;
         let mut acs = Self::default();
-        acs.basicauth = db.basicauth.clone();
+        acs.username = db.username.clone();
+        acs.password = db.password.clone();
+        acs.basicauth = Acs::basicauth(&acs.username, &acs.password);
 
         for elem in &db.cpe {
             let mut cpe = CPE::default();
@@ -169,6 +176,31 @@ impl Acs {
         }
 
         Ok(acs)
+    }
+
+    pub async fn print_config(self: &Self) {
+        let server = "http://ifconfig.me";
+        let response = match reqwest::get(server).await {
+            Ok(value) => value,
+            Err(e) => {
+                println!("Failed to get ACS URL from {}: {:?}", server, e);
+                return;
+            }
+        };
+        let ipaddress = match response.text().await {
+            Ok(value) => value,
+            Err(e) => {
+                println!("Failed to get ACS URL from {}: {:?}", server, e);
+                return;
+            }
+        };
+
+        println!("");
+        println!("Please ensure your CPEs are configured with:");
+        println!("Device.ManagementServer.URL=http://{}:8443/cwmpWeb/CPEMgt", ipaddress);
+        println!("Device.ManagementServer.Username={}", self.username);
+        println!("Device.ManagementServer.Password={}", self.password);
+        println!("");
     }
 }
 
@@ -190,6 +222,8 @@ async fn test_acs_save_restore() {
     acs.save_at(&savefile).await.unwrap();
 
     let restored = Acs::restore(&savefile).await.unwrap();
+    assert_eq!(&restored.username, &acs.username);
+    assert_eq!(&restored.password, &acs.password);
     assert_eq!(&restored.basicauth, &acs.basicauth);
     assert_eq!(&restored.cpe_list["CPE1_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE1");
     assert_eq!(&restored.cpe_list["CPE2_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE2");

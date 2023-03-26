@@ -80,12 +80,15 @@ async fn main() {
     let cpe_addr: SocketAddr = ([0, 0, 0, 0], 8443).into();
     let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
 
-    let mng_acs = acs;
+    let mng_acs = acs.clone();
     let mng_addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
     let mng_listener = TcpListener::bind(mng_addr).await.unwrap();
 
     println!("ACS listening on {:?}", cpe_addr);
     println!("Management server listening on {:?}", mng_addr);
+    tokio::task::spawn(async move {
+        acs.read().await.print_config().await;
+    });
 
     let cpe_srv = async move {
         loop {

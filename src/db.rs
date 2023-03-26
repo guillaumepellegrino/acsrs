@@ -28,7 +28,8 @@ pub struct CPE {
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Acs {
-    pub basicauth: String,
+    pub username: String,
+    pub password: String,
     pub cpe: Vec<CPE>,
 }
 

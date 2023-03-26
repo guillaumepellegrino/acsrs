@@ -174,7 +174,6 @@ impl Session {
                 }
             }
             None => {
-                println!("auth required!");
                 let response = String::from("Authorization required\n");
                 let builder = Response::builder()
                     .header("User-Agent", "acsrs")
