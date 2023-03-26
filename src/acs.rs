@@ -197,7 +197,7 @@ impl Acs {
 
         println!("");
         println!("Please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=http://{}:8443/cwmpWeb/CPEMgt", ipaddress);
+        println!("Device.ManagementServer.URL=http://{}:8000/cwmpWeb/CPEMgt", ipaddress);
         println!("Device.ManagementServer.Username={}", self.username);
         println!("Device.ManagementServer.Password={}", self.password);
         println!("");

@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
+tokio-native-tls = "*"
+native-tls = "*"
 reqwest = "*"
 serde = { version = "*", features = ["derive"] }
 quick-xml = { version = "*", features = ["async-tokio", "serialize"] }

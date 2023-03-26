@@ -12,12 +12,14 @@ dependencies = [
  "futures",
  "http-body-util",
  "hyper 1.0.0-rc.3",
+ "native-tls",
  "quick-xml",
  "rand",
  "regex",
  "reqwest",
  "serde",
  "tokio",
+ "tokio-native-tls",
  "toml",
 ]
 

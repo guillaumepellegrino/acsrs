@@ -22,16 +22,20 @@ mod soap;
 mod utils;
 mod db;
 
+use std::io::Read;
 use std::sync::{Arc};
 use std::net::SocketAddr;
 use tokio;
 use tokio::sync::{RwLock};
 use tokio::net::TcpListener;
+//use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use native_tls::Identity;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
+
 
 fn home() -> std::path::PathBuf {
     let home = std::env::var("HOME").expect("Failed to get HOME directory");
@@ -77,14 +81,27 @@ async fn main() {
     };
 
     let cpe_acs = acs.clone();
-    let cpe_addr: SocketAddr = ([0, 0, 0, 0], 8443).into();
+    let cpe_addr: SocketAddr = ([0, 0, 0, 0], 8000).into();
     let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
+
+    let sec_acs = acs.clone();
+    let sec_addr: SocketAddr = ([0, 0, 0, 0], 8443).into();
+    let sec_listener = TcpListener::bind(sec_addr).await.unwrap();
 
     let mng_acs = acs.clone();
     let mng_addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
     let mng_listener = TcpListener::bind(mng_addr).await.unwrap();
 
-    println!("ACS listening on {:?}", cpe_addr);
+    // Create the TLS acceptor.
+    let mut der = Vec::new();
+    let file = std::fs::File::open("cert.p12").unwrap();
+    let mut reader = std::io::BufReader::new(file);
+    reader.read_to_end(&mut der).unwrap();
+    let cert = Identity::from_pkcs12(&der, "").unwrap();
+    let tls_acceptor = tokio_native_tls::TlsAcceptor::from(native_tls::TlsAcceptor::builder(cert).build().unwrap());
+
+    println!("ACS listening on unsecure port {:?}", cpe_addr);
+    println!("ACS listening on secure port   {:?}", sec_addr);
     println!("Management server listening on {:?}", mng_addr);
     tokio::task::spawn(async move {
         acs.read().await.print_config().await;
@@ -105,6 +122,33 @@ async fn main() {
                 };
                 if let Err(err) = http1::Builder::new()
                     .serve_connection(stream, service_fn(service))
+                    .await
+                {
+                    println!("Failed to serve connection: {:?}", err);
+                }
+            });
+        }
+    };
+
+    let sec_srv = async move {
+        loop {
+            let (stream, _) = sec_listener.accept().await.unwrap();
+            let acs = sec_acs.clone();
+            let tls_acceptor = tls_acceptor.clone();
+            tokio::task::spawn(async move {
+                let tls_stream = tls_acceptor.accept(stream)
+                    .await.expect("accept error");
+
+                let session = Arc::new(RwLock::new(Session::new(acs)));
+                let service = |mut req: Request<hyper::body::Incoming>| {
+                    let session = session.clone();
+                    return async move {
+                        let mut session = session.write().await;
+                        return session.handle(&mut req).await;
+                    };
+                };
+                if let Err(err) = http1::Builder::new()
+                    .serve_connection(tls_stream, service_fn(service))
                     .await
                 {
                     println!("Failed to serve connection: {:?}", err);
@@ -134,5 +178,5 @@ async fn main() {
         }
     };
 
-    futures::future::join(cpe_srv, mng_srv).await;
+    futures::future::join3(cpe_srv, sec_srv, mng_srv).await;
 }
