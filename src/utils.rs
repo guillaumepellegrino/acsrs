@@ -37,7 +37,6 @@ pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
 
 pub fn reply(statuscode: u16, response: String) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
     let builder = Response::builder()
-        .header("User-Agent", "acsrs")
         .status(statuscode);
     let reply = builder.body(Full::new(Bytes::from(response)))?;
     Ok(reply)

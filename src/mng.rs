@@ -100,7 +100,7 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
         match response.body.spv_response.first() {
             Some(response) => {
                 let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
-                s += &format!("Status: {}", response.status);
+                s += &format!("Status: {}\n", response.status);
                 return utils::reply(200, s);
             }
             None => {
