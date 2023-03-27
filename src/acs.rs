@@ -32,26 +32,27 @@ pub enum Error {
     ConnectionRequestAuthenticationFailed,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Connreq {
     pub url: String,
     pub username: String,
     pub password: String,
 }
 
+#[derive(Debug)]
 pub struct Transfer {
     pub msg: soap::Envelope,
     pub observer: Option<mpsc::Sender<soap::Envelope>>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CPE {
     pub device_id: soap::DeviceId,
     pub connreq: Connreq,
     pub transfers: VecDeque<Transfer>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Acs {
     pub config: db::AcsConfig,
     pub basicauth: String,
@@ -164,6 +165,7 @@ impl Acs {
         let mut acs = Self::default();
         acs.config = db.config.clone();
         acs.basicauth = Acs::basicauth(&acs.config.username, &acs.config.password);
+        acs.savefile = path.to_path_buf();
 
         for elem in &db.cpe {
             let mut cpe = CPE::default();
