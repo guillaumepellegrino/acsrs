@@ -18,12 +18,12 @@
 use std::sync::{Arc};
 use std::collections::VecDeque;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
 use base64::Engine;
 use crate::soap;
+use crate::utils;
 use crate::db;
 
 
@@ -53,8 +53,7 @@ pub struct CPE {
 
 #[derive(Default)]
 pub struct Acs {
-    pub username: String,
-    pub password: String,
+    pub config: db::AcsConfig,
     pub basicauth: String,
     pub cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
     savefile: std::path::PathBuf,
@@ -87,11 +86,7 @@ impl Default for Connreq {
         Self {
             url: String::from(""),
             username: String::from("acsrs"),
-            password: thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(30)
-                .map(char::from)
-                .collect(),
+            password: utils::random_password(),
         }
     }
 }
@@ -119,11 +114,17 @@ impl Connreq {
 }
 
 impl Acs {
-    pub fn new(username: &str, password: &str, savefile: &std::path::Path) -> Self {
+    pub fn new(savefile: &std::path::Path) -> Self {
         let mut acs = Self::default();
-        acs.username = String::from(username);
-        acs.password = String::from(password);
-        acs.basicauth = Self::basicauth(username, password);
+        acs.config = db::AcsConfig {
+            username: utils::random_password(),
+            password: utils::random_password(),
+            unsecure_address: String::from("0.0.0.0:8080"),
+            identity_password: String::from("ACSRS"),
+            secure_address: String::from("0.0.0.0:8443"),
+            management_address: String::from("0.0.0.0:8000"),
+        };
+        acs.basicauth = Self::basicauth(&acs.config.username, &acs.config.password);
         acs.savefile = savefile.to_path_buf();
         acs
     }
@@ -138,8 +139,7 @@ impl Acs {
         println!("Save ACS config at {:?}", path);
 
         let mut db = db::Acs::default();
-        db.username = self.username.clone();
-        db.password = self.password.clone();
+        db.config = self.config.clone();
 
         for (sn, cpe) in &self.cpe_list {
             let cpe = cpe.read().await;
@@ -162,9 +162,8 @@ impl Acs {
     pub async fn restore(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
         let db = db::Acs::restore(path)?;
         let mut acs = Self::default();
-        acs.username = db.username.clone();
-        acs.password = db.password.clone();
-        acs.basicauth = Acs::basicauth(&acs.username, &acs.password);
+        acs.config = db.config.clone();
+        acs.basicauth = Acs::basicauth(&acs.config.username, &acs.config.password);
 
         for elem in &db.cpe {
             let mut cpe = CPE::default();
@@ -196,11 +195,22 @@ impl Acs {
         };
 
         println!("");
-        println!("Please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=http://{}:8000/cwmpWeb/CPEMgt", ipaddress);
-        println!("Device.ManagementServer.Username={}", self.username);
-        println!("Device.ManagementServer.Password={}", self.password);
+        //if self.config.secure_enable {
+        let addr: SocketAddr = self.config.secure_address.parse().unwrap();
+        println!("For secure connections, please ensure your CPEs are configured with:");
+        println!("Device.ManagementServer.URL=https://{}:{}/cwmpWeb/CPEMgt", ipaddress, addr.port());
+        println!("Device.ManagementServer.Username={}", self.config.username);
+        println!("Device.ManagementServer.Password={}", self.config.password);
         println!("");
+        //}
+        //if self.config.unsecure_enable {
+        let addr: SocketAddr = self.config.unsecure_address.parse().unwrap();
+        println!("For unsecure connections, please ensure your CPEs are configured with:");
+        println!("Device.ManagementServer.URL=http://{}:{}/cwmpWeb/CPEMgt", ipaddress, addr.port());
+        println!("Device.ManagementServer.Username={}", self.config.username);
+        println!("Device.ManagementServer.Password={}", self.config.password);
+        println!("");
+        //}
     }
 }
 
@@ -222,8 +232,8 @@ async fn test_acs_save_restore() {
     acs.save_at(&savefile).await.unwrap();
 
     let restored = Acs::restore(&savefile).await.unwrap();
-    assert_eq!(&restored.username, &acs.username);
-    assert_eq!(&restored.password, &acs.password);
+    assert_eq!(&restored.config.username, &acs.config.username);
+    assert_eq!(&restored.config.password, &acs.config.password);
     assert_eq!(&restored.basicauth, &acs.basicauth);
     assert_eq!(&restored.cpe_list["CPE1_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE1");
     assert_eq!(&restored.cpe_list["CPE2_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE2");

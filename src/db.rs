@@ -26,10 +26,19 @@ pub struct CPE {
     pub password: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
-pub struct Acs {
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+pub struct AcsConfig {
     pub username: String,
     pub password: String,
+    pub unsecure_address: String,
+    pub identity_password: String,
+    pub secure_address: String,
+    pub management_address: String,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct Acs {
+    pub config: AcsConfig,
     pub cpe: Vec<CPE>,
 }
 

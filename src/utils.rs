@@ -19,6 +19,8 @@ use bytes::Bytes;
 use http_body_util::{Full, BodyExt};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use crate::soap;
+use rand::{thread_rng, Rng, distributions::Alphanumeric};
+use std::io::Write;
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     let mut i = 0;
@@ -64,3 +66,29 @@ pub async fn content(req: &mut Request<IncomingBody>) -> Result<String, Box<dyn 
     Ok(String::from_utf8(body.to_vec())?)
 }
 
+pub fn random_password() -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect()
+}
+
+// Generate default certificates for a secure ACS connection
+// Pipe acsrs/ssl/ssl.sh script into shell interpreter (cat acsrs/ssl/ssl.sh | sh)
+pub fn gencertificates(acsdir: &std::path::Path) {
+    let bytes = include_bytes!("../ssl/ssl.sh");
+
+    let mut child = std::process::Command::new("sh")
+        .current_dir(acsdir)
+        .stdin(std::process::Stdio::piped())
+        .spawn().unwrap();
+
+    let child_stdin = child.stdin.as_mut().unwrap();
+    child_stdin.write_all(bytes).unwrap();
+    drop(child_stdin);
+
+    let status = child.wait().unwrap().success();
+
+    println!("status: {}", status);
+}

@@ -1,2 +1,5 @@
 /target
 .vscode
+*.pem
+*.p12
+*.0

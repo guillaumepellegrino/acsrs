@@ -175,6 +175,7 @@ impl Session {
                     self.handle_cpe_request(req).await
                 }
                 else {
+                    println!("Forbidden: {}", wwwauth);
                     utils::reply(403, String::from("Forbidden\n"))
                 }
             }
