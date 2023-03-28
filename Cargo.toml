@@ -6,7 +6,7 @@ description = "A simple ACS written in rust"
 readme = "README.md"
 repository = "https://github.com/guillaumepellegrino/acrs"
 license = "GPLv3"
-authors = ["Guillaume Pellegrino"]
+authors = ["Guillaume Pellegrino <guillaume.pellegrino@yahoo.com>"]
 keywords = ["acs", "tr069", "cwmp", "network"]
 categories = ["network-programming"]
 
