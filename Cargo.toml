@@ -2,6 +2,13 @@
 name = "acsrs"
 version = "0.1.0"
 edition = "2021"
+description = "A simple ACS written in rust"
+readme = "README.md"
+repository = "https://github.com/guillaumepellegrino/acrs"
+license = "GPLv3"
+authors = ["Guillaume Pellegrino"]
+keywords = ["acs", "tr069", "cwmp", "network"]
+categories = ["network-programming"]
 
 [dependencies]
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
