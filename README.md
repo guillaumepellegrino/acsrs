@@ -16,32 +16,40 @@ Some limitations are:
 - logging is quite messy
 - no cli or web interfaces implemented
 
-# Build ACSRS
+# Install ACSRS
+The application can be installed directly from cargo
 ```
-git clone git@github.com:guillaumepellegrino/acrs.git
-cd acsrs
-cargo build --release
+cargo install acsrs
 ```
 
 # Run ACSRS
+Simply start the application without any arguments:
 ```
-./target/release/acsrs
+acsrs
 ```
+It will auto-configure itself by generating new user, password, certificate and CA. Everything is available under `$HOME/.acrs` directory and can be overrided. Some usefuls files are:
+- config.toml : The ACS configuration.
+- ca.pem : The certificate authority. Install this file on your CPEs to authenticate the ACS.
+- identity.p12: The PKCS12 identity used by the ACS.
+- cert.pem: The ACS Public Certificate.
+
+Note: The ACS Public Certificate Common Name (CN) is derived from your public IP Address by default.
+It can be overrided by editing $HOME/.acsrs/config.toml and setting your hostname there. You can also disable there the auto-generation certificate mechanism if you wish to install your own certificates.
 
 # Usage
-## list managed cpes by this acs
+## List managed cpes by this ACS
 ```
 curl 127.0.0.1:8080/list
 ```
 
-## send a getparametervalue to the specified cpe
+## Send a getparametervalue to the specified CPE
 ```
-curl 127.0.0.1:8080/gpv/{cpe_serial_numer} -d device.managementserver.
+curl 127.0.0.1:8080/gpv/{CPE_SERIAL_NUMBER} -d Device.ManagementServer.
 ```
 
-## send a setparametervalue to the specified cpe
+## Send a setparametervalue to the specified CPE
 ```
-curl 127.0.0.1:8080/spv/{cpe_serial_numer} -d "device.wifi.neighboringwifidiagnostic.diagnosticsstate<string>=requested"
+curl 127.0.0.1:8080/spv/{CPE_SERIAL_NUMBER} -d "Device.WiFi.NeighboringWiFiDiagnostic.DiagnosticsState<string>=Requested"
 ```
 
 ## Send a GetParameterValue to the specified CPE, requesting multiple objects
