@@ -5,7 +5,12 @@
 # for secure connection with ACSRS
 ##################################################
 
-CN="*"
+if [[ "$CN" == "" ]]; then
+    echo "Missing certificate common name"
+    echo "Please run command with:"
+    echo "CN=mydomain.com $@"
+    exit 1
+fi
 
 gen_ca_conf()
 {
@@ -50,19 +55,36 @@ gencert()
 {
     echo "Generate certificates for $CN"
 
-    # Generate a 4096 bits Private Key using RSA
-    openssl genrsa -out key.pem 4096
-
     # Generate a Certificate Signing Request
     openssl req -new -key key.pem -out cert.csr -subj "/CN=$CN"
 
     # Sign the CSR
-    openssl x509 -req -days $((20*365)) -in cert.csr -CA ca.pem -CAkey ca-key.pem -out cert.pem -CAcreateserial -CAserial ca.srl
+    openssl x509 -req -days $((10*365)) -in cert.csr -CA ca.pem -CAkey ca-key.pem -out cert.pem -CAcreateserial -CAserial ca.srl
 
     # Generate PKCS12 certificate
     openssl pkcs12 -export -inkey key.pem -in cert.pem -CAfile ca.pem -out identity.p12 -passout pass:ACSRS
     # CSR can be removed
     rm -f cert.csr
+}
+
+genprivkey()
+{
+    echo "Generate certificate private key"
+
+    # Generate a 4096 bits Private Key using RSA
+    openssl genrsa -out key.pem 4096
+}
+
+updateall()
+{
+    [[ -f ca-key.pem ]] || genrootca  
+    [[ -f key.pem ]] || genprivkey
+    if [[ -f cert.pem ]]; then
+        (openssl x509 -in cert.pem -checkhost "$CN" -noout | grep "does match certificate") || gencert
+    else
+        gencert
+    fi
+    verifycert
 }
 
 verifycert()
@@ -77,8 +99,12 @@ clean()
 }
 
 case "$1" in
+    "")
+        updateall
+        ;;
     all|"")
         genrootca
+        genprivkey
         gencert
         verifycert
         ;;
@@ -86,6 +112,7 @@ case "$1" in
         genrootca
         ;;
     gencert)
+        genprivkey
         gencert
         verifycert
         ;;

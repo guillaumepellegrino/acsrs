@@ -19,6 +19,8 @@ futures = "*"
 rand = "*"
 regex = "*"
 base64 = "*"
+clap = { version = "*", features = ["cargo"] }
+daemonize = "*"
 
 [profile.release]
 opt-level = 3

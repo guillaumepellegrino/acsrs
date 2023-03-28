@@ -5,16 +5,16 @@ You can get or set datamodel from any CPE managed by this ACS with a simple curl
 
 Supported features are:
 - Zero-conf server: The server tries to configure itself securely at first start.
-- HTTP and HTTPs support.
+- HTTP, HTTPs and authentication support.
 - ACS configuration and connected CPEs are persistent
-- ACS handle Authentication
-- GetParameterValues
-- SetParameterValues
+- GetParameterValues and SetParameterValues with simple curl requests.
 
 Some limitations are:
-- This ACS server is unsecure: HTTPs is not yet implemented
 - There are no notifications mechanism implemented
 - It may not be fully compliant with TR-069 standard
+- syslog support not yet implemented
+- logging is quite messy
+- no cli or web interfaces implemented
 
 # Build ACSRS
 ```

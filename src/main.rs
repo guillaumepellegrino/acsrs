@@ -35,7 +35,26 @@ use hyper::service::service_fn;
 use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
+use clap::{arg, command};
 
+async fn get_public_ipaddress() -> Result<String, reqwest::Error> {
+    let server = "http://ifconfig.me";
+    let response = match reqwest::get(server).await {
+        Ok(value) => value,
+        Err(e) => {
+            println!("Failed to get ACS URL from {}: {:?}", server, e);
+            return Err(e);
+        }
+    };
+    let ipaddress = match response.text().await {
+        Ok(value) => value,
+        Err(e) => {
+            println!("Failed to get ACS URL from {}: {:?}", server, e);
+            return Err(e);
+        }
+    };
+    Ok(ipaddress)
+}
 
 fn home() -> std::path::PathBuf {
     let home = std::env::var("HOME").expect("Failed to get HOME directory");
@@ -44,9 +63,19 @@ fn home() -> std::path::PathBuf {
 
 #[tokio::main]
 async fn main() {
-    let acsdir = home().join(".acsrs");
+    let matches = command!()
+        .about("Auto Configuration Server")
+        .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
+        .arg(arg!(-d --daemon "Run as a daemon"))
+        .get_matches();
+
+    let acsdir = match matches.get_one::<std::path::PathBuf>("config") {
+        Some(value) => value.clone(),
+        None =>  home().join(".acsrs"),
+    };
     let savefile = acsdir.join("config.toml");
     let identityfile = acsdir.join("identity.p12");
+    let pidfile = acsdir.join("acsrs.pid");
 
     // Create config directory if doesn't exist
     if !acsdir.is_dir() {
@@ -73,21 +102,33 @@ async fn main() {
         },
     };
 
-    // Create TCP listener waiting for unsecure connection from CPEs
-    let cpe_addr: SocketAddr = acs.config.unsecure_address.parse().unwrap();
-    let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
-    println!("ACS listening on unsecure port {:?}", cpe_addr);
+    // Get server hostname
+    let mut hostname = acs.config.hostname.clone();
+    if hostname == "" {
+        // hostname was not provided in configuration
+        // Try to guess our public IP Address
+        hostname = match get_public_ipaddress().await {
+            Ok(value) => value,
+            Err(e) => {
+                println!("Failed to retrieve public IP Address: {:?}", e);
+                println!("Can not continue with autocert");
+                return;
+            }
+        };
+    }
 
-    // Create TCP/TLS listener waiting for secure connection from CPEs
-    // Open or create identity file for TLS Server
-    if !identityfile.exists() {
-        println!("Generate certificates in {:?}", acsdir);
-        utils::gencertificates(&acsdir);
+    // Create automated certificates
+    if acs.config.autocert {
+        println!("Update certificates for CN={} in {:?}", hostname, acsdir);
+        utils::gencertificates(&acsdir, &hostname);
         if !identityfile.exists() {
             println!("Failed to create {:?}", identityfile);
             return;
         }
     }
+
+    // Create TCP/TLS listener waiting for secure connection from CPEs
+    // Open or create identity file for TLS Server
     let mut der = Vec::new();
     let file = std::fs::File::open(identityfile).unwrap();
     let mut reader = std::io::BufReader::new(file);
@@ -98,10 +139,18 @@ async fn main() {
     let sec_listener = TcpListener::bind(sec_addr).await.unwrap();
     println!("ACS listening on secure port   {:?}", sec_addr);
 
+    // Create TCP listener waiting for unsecure connection from CPEs
+    let cpe_addr: SocketAddr = acs.config.unsecure_address.parse().unwrap();
+    let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
+    println!("ACS listening on unsecure port {:?}", cpe_addr);
+
     // Create TCP listener for management
     let mng_addr: SocketAddr = acs.config.management_address.parse().unwrap();
     let mng_listener = TcpListener::bind(mng_addr).await.unwrap();
     println!("Management server listening on {:?}", mng_addr);
+
+    // Print ACS configuration
+    acs.print_config(&hostname);
 
     // We are entering multi-threaded code: Lock the ACS context
     let acs = Arc::new(RwLock::new(acs));
@@ -109,12 +158,17 @@ async fn main() {
     let sec_acs = acs.clone();
     let mng_acs = acs.clone();
 
-    // Print ACS configuration
-    // The public IP Address is retrieved
-    // from a server with an async HTTP request
-    tokio::task::spawn(async move {
-        acs.read().await.print_config().await;
-    });
+    // Daemonize process if demanded
+    if matches.get_flag("daemon") {
+        println!("Daemonize process !");
+        let daemon = daemonize::Daemonize::new()
+            .pid_file(&pidfile);
+
+        if let Err(err) = daemon.start() {
+            println!("Failed to deamonize: {:?}", err);
+            return;
+        }
+    }
 
     // Unsecure server event loop
     let cpe_srv = async move {

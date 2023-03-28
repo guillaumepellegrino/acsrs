@@ -118,8 +118,10 @@ impl Acs {
     pub fn new(savefile: &std::path::Path) -> Self {
         let mut acs = Self::default();
         acs.config = db::AcsConfig {
+            hostname: String::new(),
             username: utils::random_password(),
             password: utils::random_password(),
+            autocert: true,
             unsecure_address: String::from("0.0.0.0:8080"),
             identity_password: String::from("ACSRS"),
             secure_address: String::from("0.0.0.0:8443"),
@@ -179,40 +181,20 @@ impl Acs {
         Ok(acs)
     }
 
-    pub async fn print_config(self: &Self) {
-        let server = "http://ifconfig.me";
-        let response = match reqwest::get(server).await {
-            Ok(value) => value,
-            Err(e) => {
-                println!("Failed to get ACS URL from {}: {:?}", server, e);
-                return;
-            }
-        };
-        let ipaddress = match response.text().await {
-            Ok(value) => value,
-            Err(e) => {
-                println!("Failed to get ACS URL from {}: {:?}", server, e);
-                return;
-            }
-        };
-
+    pub fn print_config(self: &Self, hostname: &str) {
         println!("");
-        //if self.config.secure_enable {
         let addr: SocketAddr = self.config.secure_address.parse().unwrap();
         println!("For secure connections, please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=https://{}:{}/cwmpWeb/CPEMgt", ipaddress, addr.port());
+        println!("Device.ManagementServer.URL=https://{}:{}/cwmpWeb/CPEMgt", hostname, addr.port());
         println!("Device.ManagementServer.Username={}", self.config.username);
         println!("Device.ManagementServer.Password={}", self.config.password);
         println!("");
-        //}
-        //if self.config.unsecure_enable {
         let addr: SocketAddr = self.config.unsecure_address.parse().unwrap();
         println!("For unsecure connections, please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=http://{}:{}/cwmpWeb/CPEMgt", ipaddress, addr.port());
+        println!("Device.ManagementServer.URL=http://{}:{}/cwmpWeb/CPEMgt", hostname, addr.port());
         println!("Device.ManagementServer.Username={}", self.config.username);
         println!("Device.ManagementServer.Password={}", self.config.password);
         println!("");
-        //}
     }
 }
 

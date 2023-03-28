@@ -28,11 +28,13 @@ pub struct CPE {
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct AcsConfig {
+    pub hostname: String,
     pub username: String,
     pub password: String,
-    pub unsecure_address: String,
+    pub autocert: bool,
     pub identity_password: String,
     pub secure_address: String,
+    pub unsecure_address: String,
     pub management_address: String,
 }
 

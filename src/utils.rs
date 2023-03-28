@@ -74,13 +74,14 @@ pub fn random_password() -> String {
         .collect()
 }
 
-// Generate default certificates for a secure ACS connection
-// Pipe acsrs/ssl/ssl.sh script into shell interpreter (cat acsrs/ssl/ssl.sh | sh)
-pub fn gencertificates(acsdir: &std::path::Path) {
+// Generate default certificates for a secure ACS connection with the specified CommonName
+// Pipe acsrs/ssl/ssl.sh script into shell interpreter (cat acsrs/ssl/ssl.sh | bash)
+pub fn gencertificates(acsdir: &std::path::Path, common_name: &str) {
     let bytes = include_bytes!("../ssl/ssl.sh");
 
-    let mut child = std::process::Command::new("sh")
+    let mut child = std::process::Command::new("bash")
         .current_dir(acsdir)
+        .env("CN", common_name)
         .stdin(std::process::Stdio::piped())
         .spawn().unwrap();
 
