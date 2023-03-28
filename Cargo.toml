@@ -13,21 +13,21 @@ categories = ["network-programming"]
 [dependencies]
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
-tokio-native-tls = "*"
-native-tls = "*"
-reqwest = "*"
-serde = { version = "*", features = ["derive"] }
-quick-xml = { version = "*", features = ["async-tokio", "serialize"] }
-toml = "*"
-digest_auth = "*"
+tokio-native-tls = "0.3.1"
+native-tls = "0.2.11"
+reqwest = "0.11.15"
+serde = { version = "1.0.158", features = ["derive"] }
+quick-xml = { version = "0.28.1", features = ["async-tokio", "serialize"] }
+toml = "0.7.3"
+digest_auth = "0.3.0"
 http-body-util = "0.1.0-rc.2" 
-bytes = "*"
-futures = "*"
-rand = "*"
-regex = "*"
-base64 = "*"
-clap = { version = "*", features = ["cargo"] }
-daemonize = "*"
+bytes = "1.4.0"
+futures = "0.3.27"
+rand = "0.8.5"
+regex = "1.7.2"
+base64 = "0.21.0"
+clap = { version = "4.1.14", features = ["cargo"] }
+daemonize = "0.5.0"
 
 [profile.release]
 opt-level = 3
