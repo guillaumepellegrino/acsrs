@@ -1,4 +1,4 @@
-# ACRS
+# ACSRS
 A simple ACS written in Rust.
 
 You can get or set datamodel from any CPE managed by this ACS with a simple curl command.
