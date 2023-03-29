@@ -49,7 +49,10 @@ async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     drop(cpe);
     drop(acs);
 
+    println!("[{}] Send ConnectionRequest to {}", serial_number, connreq.url);
     connreq.send().await?;
+    println!("[{}] ConnectionRequest was acknowledged", serial_number);
+
     let mut s = format!("> GetParameterValuesResponse from {}:\n", serial_number);
     if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
         if let Some(fault) = response.body.fault.first() {
@@ -105,7 +108,10 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     drop(cpe);
     drop(acs);
 
+    println!("[{}] Send ConnectionRequest to {}", serial_number, connreq.url);
     connreq.send().await?;
+    println!("[{}] ConnectionRequest was acknowledged", serial_number);
+
     let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
     if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
         if let Some(fault) = response.body.fault.first() {
