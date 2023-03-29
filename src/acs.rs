@@ -188,10 +188,9 @@ impl Acs {
 
 #[tokio::test]
 async fn test_acs_save_restore() {
+    let tmp = std::path::PathBuf::from("/tmp");
     let savefile = std::path::PathBuf::from("/tmp/acs.toml");
-    let username = "toto";
-    let password = "Martin";
-    let mut acs = Acs::new(username, password);
+    let mut acs = Acs::new(&tmp);
 
     let mut cpe1 = CPE::default();
     cpe1.connreq.url = String::from("http://192.168.1.X:7547/CPE1");

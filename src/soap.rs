@@ -211,6 +211,185 @@ pub struct SetParameterValuesResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct Download {
+    #[serde(rename = "CommandKey")]
+    pub command_key: Value,
+
+    #[serde(rename = "FileType")]
+    pub file_type: Value,
+
+    #[serde(rename = "URL")]
+    pub url: Value,
+
+    #[serde(rename = "Username")]
+    pub username: Value,
+
+    #[serde(rename = "Password")]
+    pub password: Value,
+
+    #[serde(rename = "FileSize")]
+    pub file_size: Value,
+
+    #[serde(rename = "TargetFileName")]
+    pub target_file_name: Value,
+
+    #[serde(rename = "DelaySeconds")]
+    pub delay_seconds: Value,
+
+    #[serde(rename = "SuccessURL")]
+    pub success_url: Value,
+
+    #[serde(rename = "FailureURL")]
+    pub failure_url: Value,
+}
+
+impl Download {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        let mut download = Download::default();
+        download
+            .set_command_key("")
+            .set_file_type("")
+            .set_url("")
+            .set_username("")
+            .set_password("")
+            .set_file_size(0)
+            .set_target_file_name("")
+            .set_delay_seconds(0)
+            .set_success_url("")
+            .set_failure_url("");
+        download
+    }
+
+    pub fn set_command_key(self: &mut Self, value: &str) -> &mut Self {
+        self.command_key= Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_file_type(self: &mut Self, value: &str) -> &mut Self {
+        self.file_type = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_url(self: &mut Self, value: &str) -> &mut Self {
+        self.url = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_username(self: &mut Self, value: &str) -> &mut Self {
+        self.username = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_password(self: &mut Self, value: &str) -> &mut Self {
+        self.password = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_file_size(self: &mut Self, value: i64) -> &mut Self {
+        self.file_size = Value {
+            xsi_type: String::from("xsd:long"),
+            text: format!("{}", value),
+        };
+        self
+    }
+
+    pub fn set_target_file_name(self: &mut Self, value: &str) -> &mut Self {
+        self.target_file_name = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_delay_seconds(self: &mut Self, value: i32) -> &mut Self {
+        self.delay_seconds = Value {
+            xsi_type: String::from("xsd:int"),
+            text: format!("{}", value),
+        };
+        self
+    }
+
+    pub fn set_success_url(self: &mut Self, value: &str) -> &mut Self {
+        self.success_url = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+
+    pub fn set_failure_url(self: &mut Self, value: &str) -> &mut Self {
+        self.failure_url = Value {
+            xsi_type: String::from("xsd:string"),
+            text: String::from(value),
+        };
+        self
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct DownloadResponse {
+    #[serde(rename = "Status")]
+    pub status: String,
+
+    #[serde(rename = "StartTime")]
+    pub start_time: String,
+
+    #[serde(rename = "CompleteTime")]
+    pub complete_time: String,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct TransferComplete {
+    #[serde(rename = "CommandKey")]
+    pub command_key: String,
+
+    #[serde(rename = "FaultStruct")]
+    pub fault_struct: CwmpFault,
+
+    #[serde(rename = "StartTime")]
+    pub start_time: String,
+
+    #[serde(rename = "CompleteTime")]
+    pub complete_time: String,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct Reboot {
+    #[serde(rename = "CommandKey")]
+    pub command_key: Value,
+}
+
+impl Reboot {
+    pub fn new(command_key: &str) -> Self {
+        Self {
+            command_key: Value {
+                xsi_type: String::from("xsd:string"),
+                text: String::from(command_key),
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct RebootResponse {}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct CwmpFault {
     #[serde(rename = "FaultCode")]
     #[serde(default)]
@@ -251,6 +430,11 @@ pub enum Kind {
     GetParameterValuesResponse,
     SetParameterValues,
     SetParameterValuesResponse,
+    Download,
+    DownloadResponse,
+    Reboot,
+    RebootResponse,
+    TransferComplete,
     Fault,
     Unknown,
 }
@@ -280,6 +464,26 @@ pub struct Body {
     #[serde(rename(serialize = "cwmp:SetParameterValuesResponse", deserialize = "SetParameterValuesResponse"))]
     #[serde(default)]
     pub spv_response: Vec<SetParameterValuesResponse>,
+
+    #[serde(rename(serialize = "cwmp:Download", deserialize = "Download"))]
+    #[serde(default)]
+    pub download: Vec<Download>,
+
+    #[serde(rename(serialize = "cwmp:DownloadResponse", deserialize = "DownloadResponse"))]
+    #[serde(default)]
+    pub download_response: Vec<DownloadResponse>,
+
+    #[serde(rename(serialize = "cwmp:TransferComplete", deserialize = "TransferComplete"))]
+    #[serde(default)]
+    pub transfer_complete: Vec<TransferComplete>,
+
+    #[serde(rename(serialize = "cwmp:Reboot", deserialize = "Reboot"))]
+    #[serde(default)]
+    pub reboot: Vec<Reboot>,
+
+    #[serde(rename(serialize = "cwmp:RebootResponse", deserialize = "RebootResponse"))]
+    #[serde(default)]
+    pub reboot_response: Vec<RebootResponse>,
 
     #[serde(rename(serialize = "soapenv:Fault", deserialize = "Fault"))]
     #[serde(default)]
@@ -348,6 +552,21 @@ impl Envelope {
         else if self.body.spv_response.first().is_some() {
             Kind::SetParameterValuesResponse
         }
+        else if self.body.download.first().is_some() {
+            Kind::Download
+        }
+        else if self.body.download_response.first().is_some() {
+            Kind::DownloadResponse
+        }
+        else if self.body.transfer_complete.first().is_some() {
+            Kind::TransferComplete
+        }
+        else if self.body.reboot.first().is_some() {
+            Kind::Reboot
+        }
+        else if self.body.reboot_response.first().is_some() {
+            Kind::RebootResponse
+        }
         else if self.body.fault.first().is_some() {
             Kind::Fault
         }
@@ -373,6 +592,18 @@ impl Envelope {
         };
         self.body.spv.push(spv);
         self.body.spv.first_mut().unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub fn add_download(self: &mut Self) -> &mut Download {
+        self.body.download.push(Download::new());
+        self.body.download.first_mut().unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub fn add_reboot(self: &mut Self, command_key: &str) -> &mut Reboot {
+        self.body.reboot.push(Reboot::new(command_key));
+        self.body.reboot.first_mut().unwrap()
     }
 
     pub fn id(self: &Self) -> u32 {
@@ -444,3 +675,33 @@ fn test_spv() {
     assert_eq!(value, expected.trim());
 }
 
+#[test]
+fn test_download() {
+    let mut envelope = Envelope::new(2);
+    let download = envelope.add_download();
+    download
+        .set_command_key("FirmwareUpgrade")
+        .set_file_type("1 Firmware Upgrade Image")
+        .set_url("http://192.168.1.100/firmware.img")
+        .set_username("acsrs")
+        .set_password("acsrs")
+        .set_file_size(64000000)
+        .set_target_file_name("firmware.img")
+        .set_delay_seconds(0)
+        .set_success_url("success")
+        .set_failure_url("failure");
+
+    let value = quick_xml::se::to_string(&envelope).unwrap();
+    let expected: String = std::fs::read_to_string("test/download.xml").unwrap().parse().unwrap();
+    assert_eq!(value, expected.trim());
+}
+
+#[test]
+fn test_reboot() {
+    let mut envelope = Envelope::new(2);
+    envelope.add_reboot("123456");
+
+    let value = quick_xml::se::to_string(&envelope).unwrap();
+    let expected: String = std::fs::read_to_string("test/reboot.xml").unwrap().parse().unwrap();
+    assert_eq!(value, expected.trim());
+}
