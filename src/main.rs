@@ -191,11 +191,13 @@ async fn main() -> eyre::Result<()> {
             let acs = sec_acs.clone();
             let tls_acceptor = tls_acceptor.clone();
             tokio::task::spawn(async move {
-                println!("TCPc acceptor in");
-                let tls_stream = tls_acceptor.accept(stream)
-                    .await.expect("accept error");
-
-                println!("TCPc acceptor out");
+                let tls_stream = match tls_acceptor.accept(stream).await {
+                    Ok(value) => value,
+                    Err(err) => {
+                        println!("tls accept error: {:?}", err);
+                        return;
+                    },
+                };
 
                 let session = Arc::new(RwLock::new(Session::new(acs)));
                 let service = |mut req: Request<hyper::body::Incoming>| {

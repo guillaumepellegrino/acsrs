@@ -27,7 +27,7 @@ use crate::acs::{*};
 use crate::soap;
 use crate::utils;
 
-async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let content = utils::content(req).await?;
     let serial_number = utils::req_path(req, 2);
     let acs = acs.read().await;
@@ -75,7 +75,7 @@ async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     return utils::reply(404, s);
 }
 
-async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let content = utils::content(req).await?;
     let serial_number = utils::req_path(req, 2);
     let acs = acs.read().await;
@@ -129,7 +129,7 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     return utils::reply(404, s);
 }
 
-async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let acs = acs.read().await;
     let mut s = format!("{}x Managed CPEs:\n", acs.cpe_list.len());
 
@@ -140,12 +140,12 @@ async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingB
     utils::reply(200, s)
 }
 
-async fn handle_stats_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_stats_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let s = format!("Stats not implemented");
     utils::reply(200, s)
 }
 
-async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let mut s = format!("Welcome on ACS Server\n");
     s += "Usage:\n";
     s += "- List managed cpes by this acs\n";
@@ -160,12 +160,12 @@ async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<Incom
     utils::reply(200, s)
 }
 
-async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let s = format!("Unknown request: {}\n", req.uri());
     utils::reply(404, s)
 }
 
-pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
     let reply = match utils::req_path(&req, 1).as_str() {
         "gpv"   => handle_gpv_request(acs, req).await,
         "spv"   => handle_spv_request(acs, req).await,

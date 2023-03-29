@@ -22,15 +22,10 @@ use std::net::SocketAddr;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
 use base64::Engine;
+use eyre::{eyre};
 use crate::soap;
 use crate::utils;
 use crate::db;
-
-
-#[derive(Debug)]
-pub enum Error {
-    ConnectionRequestAuthenticationFailed,
-}
 
 #[derive(Debug, Clone)]
 pub struct Connreq {
@@ -60,13 +55,6 @@ pub struct Acs {
     savefile: std::path::PathBuf,
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ACS Error: {:?}\n", self)
-    }
-}
-impl std::error::Error for Error {}
-
 impl Transfer {
     pub fn new() -> Self {
         Self {
@@ -93,7 +81,7 @@ impl Default for Connreq {
 }
 
 impl Connreq {
-    pub async fn send(self: &Self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send(self: &Self) -> eyre::Result<()> {
         let client = reqwest::Client::new();
 
         // Step 1:  Get the auth header
@@ -109,7 +97,7 @@ impl Connreq {
 
         match response.status() {
             reqwest::StatusCode::OK => Ok(()),
-            _ => Err(Box::new(Error::ConnectionRequestAuthenticationFailed)),
+            _ => Err(eyre!("ConnectionRequest: Authentication failed")),
         }
     }
 }
@@ -138,7 +126,7 @@ impl Acs {
         format!("Basic {}", token64)
     }
 
-    pub async fn save_at(self: &Self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn save_at(self: &Self, path: &std::path::Path) -> eyre::Result<()> {
         println!("Save ACS config at {:?}", path);
 
         let mut db = db::Acs::default();
@@ -158,11 +146,11 @@ impl Acs {
         db.save(path)
     }
 
-    pub async fn save(self: &Self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn save(self: &Self) -> eyre::Result<()> {
         self.save_at(&self.savefile).await
     }
 
-    pub async fn restore(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn restore(path: &std::path::Path) -> eyre::Result<Acs> {
         let db = db::Acs::restore(path)?;
         let mut acs = Self::default();
         acs.config = db.config.clone();

@@ -76,7 +76,7 @@ impl Session {
         }
     }
 
-    async fn cpe_check_transfers(self: &mut Self) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+    async fn cpe_check_transfers(self: &mut Self) ->  eyre::Result<Response<Full<Bytes>>> {
         let mut cpe = match &self.cpe {
             Some(cpe) => cpe.write().await,
             None => {
@@ -100,7 +100,7 @@ impl Session {
         return utils::reply_xml(&transfer.msg);
     }
 
-    async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+    async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
         println!("Received from CPE:");
         println!("  Headers: {:?}", req.headers());
 
@@ -166,7 +166,7 @@ impl Session {
         return self.cpe_check_transfers().await;
     }
 
-    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
 
         match req.headers().get("authorization") {
             Some(wwwauth) => {
@@ -191,7 +191,7 @@ impl Session {
     }
 
 
-    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
         let reply = match req.uri().path() {
             "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
             _                 => utils::reply(403, String::from("Forbidden\n")),
