@@ -59,7 +59,7 @@ pub fn reply_error(err: eyre::Report) -> Result<Response<Full<Bytes>>> {
     println!("{}", reply);
     Ok(Response::builder()
         .status(500)
-        .body(Full::new(Bytes::from(reply))).unwrap())
+        .body(Full::new(Bytes::from(reply)))?)
 }
 
 pub async fn content(req: &mut Request<IncomingBody>) -> Result<String> {

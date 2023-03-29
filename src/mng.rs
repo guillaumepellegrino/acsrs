@@ -151,11 +151,11 @@ async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<Incom
     s += "Usage:\n";
     s += "- List managed cpes by this acs\n";
     s += "curl 127.0.0.1:8000/list\n\n";
-    s += "- Send a getparametervalue to the specified cpe\n";
+    s += "- Send a GetParameterValues to the specified cpe\n";
     s += "curl 127.0.0.1:8000/gpv/{cpe_serial_numer} -d device.managementserver.\n\n";
-    s += "- Send a setparametervalue to the specified cpe\n";
+    s += "- Send a SetParameterValues to the specified cpe\n";
     s += "curl 127.0.0.1:8000/spv/{cpe_serial_numer} -d \"device.wifi.neighboringwifidiagnostic.diagnosticsstate<string>=requested\"\n\n";
-    s += "- Send a GetParameterValue to the specified CPE, requesting multiple objects\n";
+    s += "- Send a GetParameterValues to the specified CPE, requesting multiple objects\n";
     s += "curl 127.0.0.1:8000/gpv/{CPE_SERIAL_NUMER} -d Device.ManagementServer.;Device.Time.\n\n";
 
     utils::reply(200, s)

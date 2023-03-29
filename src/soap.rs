@@ -243,6 +243,18 @@ pub struct SoapFault {
     pub detail: SoapFaultDetail,
 }
 
+#[derive(Debug)]
+pub enum Kind {
+    Inform,
+    InformResponse,
+    GetParameterValues,
+    GetParameterValuesResponse,
+    SetParameterValues,
+    SetParameterValuesResponse,
+    Fault,
+    Unknown,
+}
+
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Body {
     #[serde(rename = "Inform")]
@@ -315,6 +327,33 @@ impl Envelope {
         root.xmlns_soapenv = String::from("http://schemas.xmlsoap.org/soap/envelope/");
         root.xmlns_xsi = String::from("http://www.w3.org/2001/XMLSchema-instance");
         root
+    }
+
+    pub fn kind(self: &Self) -> Kind {
+        if self.body.inform.first().is_some() {
+            Kind::Inform
+        }
+        else if self.body.inform_response.first().is_some() {
+            Kind::InformResponse
+        }
+        else if self.body.gpv.first().is_some() {
+            Kind::GetParameterValues
+        }
+        else if self.body.gpv_response.first().is_some() {
+            Kind::GetParameterValuesResponse
+        }
+        else if self.body.spv.first().is_some() {
+            Kind::SetParameterValues
+        }
+        else if self.body.spv_response.first().is_some() {
+            Kind::SetParameterValuesResponse
+        }
+        else if self.body.fault.first().is_some() {
+            Kind::Fault
+        }
+        else {
+            Kind::Unknown
+        }
     }
 
     pub fn add_inform_response(self: &mut Self) -> &mut InformResponse {

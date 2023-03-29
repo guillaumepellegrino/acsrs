@@ -30,7 +30,9 @@ pub struct Session {
     acs: Arc<RwLock<Acs>>,
     cpe: Option<Arc<RwLock<CPE>>>,
     observer: Option<mpsc::Sender<soap::Envelope>>,
+    sn: String,
     id: u32,
+    counter: u32,
 }
 
 impl Session {
@@ -39,7 +41,9 @@ impl Session {
             acs: acs.clone(),
             cpe: None,
             observer: None,
+            sn: String::new(),
             id: 0,
+            counter: 0,
         }
     }
 
@@ -81,7 +85,7 @@ impl Session {
         let mut cpe = match &self.cpe {
             Some(cpe) => cpe.write().await,
             None => {
-                println!("Unknown CPE: Reply with no content");
+                println!("[SN:??][SID:??][{}] Send: Reply with no content (Unknown CPE)", self.counter);
                 return utils::reply(204, String::from(""));
             }
         };
@@ -89,7 +93,8 @@ impl Session {
         let mut transfer = match cpe.transfers.pop_front() {
             Some(transfer) => transfer,
             None => {
-                println!("No pending transfer for CPE: Reply with no content");
+                println!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
+                    self.sn, self.id, self.counter);
                 return utils::reply(204, String::from(""));
             }
         };
@@ -97,19 +102,22 @@ impl Session {
         self.observer = transfer.observer;
         drop(cpe);
 
-        println!("Transfer pending message");
+        println!("[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
+                    self.sn, self.id, self.counter, transfer.msg.kind());
         return utils::reply_xml(&transfer.msg);
     }
 
     async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
-        println!("Received from CPE:");
-        println!("  Headers: {:?}", req.headers());
+        //println!("Received from CPE");
+        //println!("  Headers: {:?}", req.headers());
 
         let content = utils::content(req).await?;
         //println!("  Content: [\n{}\n]", content);
 
         //  The CPE has nothing to tell us: We may ask for a new Transfer
         if content.is_empty() {
+            println!("[SN:{}][SID:{}][{}] Received: Empty content => Check pending transfers for this CPE",
+                self.sn, self.id, self.counter);
             return self.cpe_check_transfers().await;
         }
 
@@ -125,32 +133,34 @@ impl Session {
 
         // Process message sent by CPE
         if let Some(inform) = envelope.inform() {
-            println!("Inform received from {}", inform.device_id.serial_number);
-            println!("Session ID: {}", envelope.id());
             self.id = envelope.id();
+            self.sn = inform.device_id.serial_number.clone();
+            println!("[SN:{}][SID:{}][{}] Received: Inform message", self.sn, self.id, self.counter);
 
             for event in &inform.event.event_struct {
-                println!("Event: {}", event.event_code);
+                println!("[SN:{}][SID:{}][{}]      Event: {}",
+                    self.sn, self.id, self.counter, event.event_code);
             }
             self.cpe_handle_inform(&inform).await;
 
+            println!("[SN:{}][SID:{}][{}] Send: Inform Response", self.sn, self.id, self.counter);
             let mut response = soap::Envelope::new(envelope.id());
             response.add_inform_response();
             return utils::reply_xml(&response);
         }
         else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
-            println!("GPV Response");
+            println!("[SN:{}][SID:{}][{}] Received: GPV Response", self.sn, self.id, self.counter);
         }
         else if let Some(spv_response) = envelope.body.spv_response.first() {
-            println!("SPV Response: {}", spv_response.status);
+            println!("[SN:{}][SID:{}][{}] Received: SPV Response = {}", self.sn, self.id, self.counter, spv_response.status);
         }
         else if let Some(fault) = envelope.body.fault.first() {
-            println!("Fault: {} - {}",
+            println!("[SN:{}][SID:{}][{}] Received: Fault: {} - {}", self.sn, self.id, self.counter,
                 fault.detail.cwmpfault.faultcode.text,
                 fault.detail.cwmpfault.faultstring.text);
         }
         else {
-            println!("Unknown SOAP/xml request: {}", content);
+            println!("[SN:{}][SID:{}][{}] Received: Unexpected SOAP/XML Request: {}", self.sn, self.id, self.counter, content);
             return utils::reply(204, String::from(""));
         }
 
@@ -158,7 +168,7 @@ impl Session {
         // we forward the CPE response to him.
         if let Some(observer) = self.observer.as_mut() {
             if let Err(err) = observer.send(envelope).await {
-                println!("Failed to forward Response: {:?}", err);
+                println!("[SN:{}][SID:{}][{}] Failed to forward response to observer: {:?}", self.sn, self.id, self.counter, err);
             }
             self.observer = None;
         }
@@ -176,11 +186,12 @@ impl Session {
                     self.handle_cpe_request(req).await
                 }
                 else {
-                    println!("Forbidden: {}", wwwauth);
+                    println!("[SN:??][SID:??][{}] Access forbidden: {}", self.counter, wwwauth);
                     utils::reply(403, String::from("Forbidden\n"))
                 }
             }
             None => {
+                println!("[SN:??][SID:??][{}] Authorization required", self.counter);
                 let response = String::from("Authorization required\n");
                 let builder = Response::builder()
                     .header("User-Agent", "acsrs")
@@ -193,6 +204,7 @@ impl Session {
 
 
     pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+        self.counter += 1;
         let reply = match req.uri().path() {
             "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
             _                 => utils::reply(403, String::from("Forbidden\n")),
