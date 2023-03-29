@@ -17,6 +17,7 @@
  */
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use eyre::{Result};
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct CPE {
@@ -48,7 +49,7 @@ impl Acs {
     /**
      * Save ACS configuration to TOML file specified by path
      */
-    pub fn save(self: &Self, path: &std::path::Path) -> eyre::Result<()> {
+    pub fn save(self: &Self, path: &std::path::Path) -> Result<()> {
         let mut file = std::fs::File::create(path)?;
         let string = toml::to_string(self)?;
         file.write_all(string.as_bytes())?;
@@ -58,7 +59,7 @@ impl Acs {
     /**
      * Restore ACS configuration from TOML file specified by path
      */
-    pub fn restore(path: &std::path::Path) -> eyre::Result<Acs> {
+    pub fn restore(path: &std::path::Path) -> Result<Acs> {
         let string = std::fs::read_to_string(path)?;
         let acs: Acs = toml::from_str(&string)?;
         Ok(acs)

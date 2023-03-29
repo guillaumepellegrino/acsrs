@@ -35,11 +35,11 @@ use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
 use clap::{arg, command};
-use eyre::{eyre, WrapErr};
+use eyre::{Result, eyre, WrapErr};
 
 /// Return the PUBLIC IP Address of this machine
 /// by querying http://ifconfig.me.
-async fn get_public_ipaddress() -> eyre::Result<String> {
+async fn get_public_ipaddress() -> Result<String> {
     let server = "http://ifconfig.me";
     let response = reqwest::get(server).await?;
     let ipaddress = response.text().await?;
@@ -53,7 +53,7 @@ fn home() -> std::path::PathBuf {
 }
 
 #[tokio::main]
-async fn main() -> eyre::Result<()> {
+async fn main() -> Result<()> {
     let matches = command!()
         .about("Auto Configuration Server")
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))

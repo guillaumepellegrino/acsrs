@@ -21,6 +21,7 @@ use http_body_util::Full;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
+use eyre::{Result};
 use crate::acs::{*};
 use crate::soap;
 use crate::utils;
@@ -76,7 +77,7 @@ impl Session {
         }
     }
 
-    async fn cpe_check_transfers(self: &mut Self) ->  eyre::Result<Response<Full<Bytes>>> {
+    async fn cpe_check_transfers(self: &mut Self) ->  Result<Response<Full<Bytes>>> {
         let mut cpe = match &self.cpe {
             Some(cpe) => cpe.write().await,
             None => {
@@ -100,7 +101,7 @@ impl Session {
         return utils::reply_xml(&transfer.msg);
     }
 
-    async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
+    async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
         println!("Received from CPE:");
         println!("  Headers: {:?}", req.headers());
 
@@ -166,7 +167,7 @@ impl Session {
         return self.cpe_check_transfers().await;
     }
 
-    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
+    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
 
         match req.headers().get("authorization") {
             Some(wwwauth) => {
@@ -191,7 +192,7 @@ impl Session {
     }
 
 
-    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> eyre::Result<Response<Full<Bytes>>> {
+    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
         let reply = match req.uri().path() {
             "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
             _                 => utils::reply(403, String::from("Forbidden\n")),

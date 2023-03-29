@@ -22,7 +22,7 @@ use std::net::SocketAddr;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
 use base64::Engine;
-use eyre::{eyre};
+use eyre::{Result, eyre};
 use crate::soap;
 use crate::utils;
 use crate::db;
@@ -81,7 +81,7 @@ impl Default for Connreq {
 }
 
 impl Connreq {
-    pub async fn send(self: &Self) -> eyre::Result<()> {
+    pub async fn send(self: &Self) -> Result<()> {
         let client = reqwest::Client::new();
 
         // Step 1:  Get the auth header
@@ -126,7 +126,7 @@ impl Acs {
         format!("Basic {}", token64)
     }
 
-    pub async fn save_at(self: &Self, path: &std::path::Path) -> eyre::Result<()> {
+    pub async fn save_at(self: &Self, path: &std::path::Path) -> Result<()> {
         println!("Save ACS config at {:?}", path);
 
         let mut db = db::Acs::default();
@@ -146,11 +146,11 @@ impl Acs {
         db.save(path)
     }
 
-    pub async fn save(self: &Self) -> eyre::Result<()> {
+    pub async fn save(self: &Self) -> Result<()> {
         self.save_at(&self.savefile).await
     }
 
-    pub async fn restore(path: &std::path::Path) -> eyre::Result<Acs> {
+    pub async fn restore(path: &std::path::Path) -> Result<Acs> {
         let db = db::Acs::restore(path)?;
         let mut acs = Self::default();
         acs.config = db.config.clone();

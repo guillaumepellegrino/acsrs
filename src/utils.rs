@@ -21,6 +21,7 @@ use hyper::{body::Incoming as IncomingBody, Request, Response};
 use crate::soap;
 use rand::{thread_rng, Rng, distributions::Alphanumeric};
 use std::io::Write;
+use eyre::{Result};
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     let mut i = 0;
@@ -37,14 +38,14 @@ pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     }
 }
 
-pub fn reply(statuscode: u16, response: String) -> eyre::Result<Response<Full<Bytes>>> {
+pub fn reply(statuscode: u16, response: String) -> Result<Response<Full<Bytes>>> {
     let builder = Response::builder()
         .status(statuscode);
     let reply = builder.body(Full::new(Bytes::from(response)))?;
     Ok(reply)
 }
 
-pub fn reply_xml(response: &soap::Envelope) -> eyre::Result<Response<Full<Bytes>>> {
+pub fn reply_xml(response: &soap::Envelope) -> Result<Response<Full<Bytes>>> {
     let text = quick_xml::se::to_string(&response)?;
     let builder = Response::builder()
         .header("User-Agent", "acsrs")
@@ -53,7 +54,7 @@ pub fn reply_xml(response: &soap::Envelope) -> eyre::Result<Response<Full<Bytes>
     Ok(reply)
 }
 
-pub fn reply_error(err: eyre::Report) -> eyre::Result<Response<Full<Bytes>>> {
+pub fn reply_error(err: eyre::Report) -> Result<Response<Full<Bytes>>> {
     let reply = format!("Server internal error: {:?}\n", err);
     println!("{}", reply);
     Ok(Response::builder()
@@ -61,7 +62,7 @@ pub fn reply_error(err: eyre::Report) -> eyre::Result<Response<Full<Bytes>>> {
         .body(Full::new(Bytes::from(reply))).unwrap())
 }
 
-pub async fn content(req: &mut Request<IncomingBody>) -> eyre::Result<String> {
+pub async fn content(req: &mut Request<IncomingBody>) -> Result<String> {
     let body = req.collect().await?.to_bytes();
     Ok(String::from_utf8(body.to_vec())?)
 }
