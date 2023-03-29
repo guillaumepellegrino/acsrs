@@ -28,6 +28,7 @@ regex = "1.7.2"
 base64 = "0.21.0"
 clap = { version = "4.1.14", features = ["cargo"] }
 daemonize = "0.5.0"
+eyre = "0.6.8"
 
 [profile.release]
 opt-level = 3

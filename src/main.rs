@@ -28,7 +28,6 @@ use std::net::SocketAddr;
 use tokio;
 use tokio::sync::{RwLock};
 use tokio::net::TcpListener;
-//use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use native_tls::Identity;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -36,33 +35,25 @@ use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
 use clap::{arg, command};
+use eyre::{eyre, WrapErr};
 
-async fn get_public_ipaddress() -> Result<String, reqwest::Error> {
+/// Return the PUBLIC IP Address of this machine
+/// by querying http://ifconfig.me.
+async fn get_public_ipaddress() -> eyre::Result<String> {
     let server = "http://ifconfig.me";
-    let response = match reqwest::get(server).await {
-        Ok(value) => value,
-        Err(e) => {
-            println!("Failed to get ACS URL from {}: {:?}", server, e);
-            return Err(e);
-        }
-    };
-    let ipaddress = match response.text().await {
-        Ok(value) => value,
-        Err(e) => {
-            println!("Failed to get ACS URL from {}: {:?}", server, e);
-            return Err(e);
-        }
-    };
+    let response = reqwest::get(server).await?;
+    let ipaddress = response.text().await?;
     Ok(ipaddress)
 }
 
+/// Return the path to $HOME directory
 fn home() -> std::path::PathBuf {
     let home = std::env::var("HOME").expect("Failed to get HOME directory");
     std::path::Path::new(&home).to_path_buf()
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> eyre::Result<()> {
     let matches = command!()
         .about("Auto Configuration Server")
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
@@ -80,10 +71,8 @@ async fn main() {
     // Create config directory if doesn't exist
     if !acsdir.is_dir() {
         println!("Create config directory: {:?}", acsdir);
-        if let Err(err) = std::fs::create_dir(&acsdir) {
-            println!("Failed to create {:?} directory: {:?}", acsdir, err);
-            return;
-        }
+        std::fs::create_dir(&acsdir)
+            .wrap_err_with(|| {format!("Failed to create acs config directory at {:?}", acsdir)})?;
     }
 
     // Restore ACS from config file or create a new one
@@ -107,14 +96,8 @@ async fn main() {
     if hostname == "" {
         // hostname was not provided in configuration
         // Try to guess our public IP Address
-        hostname = match get_public_ipaddress().await {
-            Ok(value) => value,
-            Err(e) => {
-                println!("Failed to retrieve public IP Address: {:?}", e);
-                println!("Can not continue with autocert");
-                return;
-            }
-        };
+        hostname = get_public_ipaddress().await
+            .wrap_err_with(|| {format!("Failed to get public IP Address")})?;
     }
 
     // Create automated certificates
@@ -122,31 +105,40 @@ async fn main() {
         println!("Update certificates for CN={} in {:?}", hostname, acsdir);
         utils::gencertificates(&acsdir, &hostname);
         if !identityfile.exists() {
-            println!("Failed to create {:?}", identityfile);
-            return;
+            return Err(eyre!("Failed to create {:?}", identityfile));
         }
     }
 
     // Create TCP/TLS listener waiting for secure connection from CPEs
     // Open or create identity file for TLS Server
     let mut der = Vec::new();
-    let file = std::fs::File::open(identityfile).unwrap();
+    let file = std::fs::File::open(&identityfile)
+        .wrap_err_with(|| {format!("Failed to open {:?}", identityfile)})?;
     let mut reader = std::io::BufReader::new(file);
-    reader.read_to_end(&mut der).unwrap();
-    let cert = Identity::from_pkcs12(&der, &acs.config.identity_password).unwrap();
-    let tls_acceptor = tokio_native_tls::TlsAcceptor::from(native_tls::TlsAcceptor::builder(cert).build().unwrap());
-    let sec_addr: SocketAddr = acs.config.secure_address.parse().unwrap();
-    let sec_listener = TcpListener::bind(sec_addr).await.unwrap();
+    reader.read_to_end(&mut der)
+        .wrap_err_with(|| {format!("Failed to read {:?}", identityfile)})?;
+    let cert = Identity::from_pkcs12(&der, &acs.config.identity_password)
+        .wrap_err_with(|| {format!("Failed to decrypt {:?} with provided password", identityfile)})?;
+    let tls_acceptor = tokio_native_tls::TlsAcceptor::from(native_tls::TlsAcceptor::builder(cert).build()
+        .wrap_err_with(|| {format!("Failed to build TLS Acceptor for secure server from identity: {:?}", identityfile)})?);
+    let sec_addr: SocketAddr = acs.config.secure_address.parse()
+        .wrap_err_with(|| {format!("config::secure_address ({}) is not a socket address", acs.config.secure_address)})?;
+    let sec_listener = TcpListener::bind(sec_addr).await
+        .wrap_err_with(|| {format!("Failed to bind {}: Is the ACS server already running ?", acs.config.secure_address)})?;
     println!("ACS listening on secure port   {:?}", sec_addr);
 
     // Create TCP listener waiting for unsecure connection from CPEs
-    let cpe_addr: SocketAddr = acs.config.unsecure_address.parse().unwrap();
-    let cpe_listener = TcpListener::bind(cpe_addr).await.unwrap();
+    let cpe_addr: SocketAddr = acs.config.unsecure_address.parse()
+        .wrap_err_with(|| {format!("config::unsecure_address ({}) is not a socket address", acs.config.unsecure_address)})?;
+    let cpe_listener = TcpListener::bind(cpe_addr).await
+        .wrap_err_with(|| {format!("Failed to bind {}: Is the ACS server already running ?", acs.config.unsecure_address)})?;
     println!("ACS listening on unsecure port {:?}", cpe_addr);
 
     // Create TCP listener for management
-    let mng_addr: SocketAddr = acs.config.management_address.parse().unwrap();
-    let mng_listener = TcpListener::bind(mng_addr).await.unwrap();
+    let mng_addr: SocketAddr = acs.config.management_address.parse()
+        .wrap_err_with(|| {format!("config::management_address ({}) is not a socket address", acs.config.management_address)})?;
+    let mng_listener = TcpListener::bind(mng_addr).await
+        .wrap_err_with(|| {format!("Failed to bind {}: Is the ACS server already running ?", acs.config.management_address)})?;
     println!("Management server listening on {:?}", mng_addr);
 
     // Print ACS configuration
@@ -164,10 +156,8 @@ async fn main() {
         let daemon = daemonize::Daemonize::new()
             .pid_file(&pidfile);
 
-        if let Err(err) = daemon.start() {
-            println!("Failed to deamonize: {:?}", err);
-            return;
-        }
+        daemon.start()
+            .wrap_err_with(|| {format!("Failed to daemonize")})?;
     }
 
     // Unsecure server event loop
@@ -249,4 +239,5 @@ async fn main() {
 
     // Join the three event loop in one unique future
     futures::future::join3(cpe_srv, sec_srv, mng_srv).await;
+    Ok(())
 }
