@@ -172,6 +172,11 @@ async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) 
     utils::reply(404, s)
 }
 
+// TODO:
+// - Factorize code for GPV and SPV.
+// - Check if a session is already opened before sending a ConnectionRequest
+// - Maintain the connection to CPE open as long as one management session is opened. 
+//
 pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
     let reply = match utils::req_path(&req, 1).as_str() {
         "gpv"   => handle_gpv_request(acs, req).await,
