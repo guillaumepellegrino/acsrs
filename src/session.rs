@@ -79,6 +79,8 @@ impl Session {
         cpe.device_id = inform.device_id.clone();
         if cpe.connreq.url != connreq_url {
             println!("connreq.url is not configred: Configure ConnectionRequest");
+
+            println!("[SN:{}][SID:{}][{}] Unknown ConnReqURL: Configure CPE ConnectionRequest", self.sn, self.id, self.counter);
             cpe.connreq.url = String::from(connreq_url);
 
             // Push a tranfer to configure ConnectionRequest with an SPV
