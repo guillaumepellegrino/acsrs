@@ -48,9 +48,28 @@ impl Session {
     }
 
     async fn cpe_handle_inform(self: &mut Self, inform: &soap::Inform) {
+        let mut igd = false;
         let connreq_url = match inform.parameter_list.get_value("Device.ManagementServer.ConnectionRequestURL") {
             Some(value) => value,
-            None => {return;},
+            None => {
+                match inform.parameter_list.get_value("InternetGatewayDevice.ManagementServer.ConnectionRequestURL") {
+                    Some(value) => {
+                        igd = true;
+                        value
+                    },
+                    None => {
+                        println!("[SN:{}][SID:{}][{}] Inform message does not contain ConnectionRequestURL", self.sn, self.id, self.counter);
+                        return;
+                    }
+                }
+            },
+        };
+
+        let (connreq_username_path, connreq_password_path) = match igd {
+            true => ("InternetGatewayDevice.ManagementServer.ConnectionRequestUsername",
+                     "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"),
+            false => ("Device.ManagementServer.ConnectionRequestUsername",
+                      "Device.ManagementServer.ConnectionRequestUsername"),
         };
 
         let mut acs = self.acs.write().await;
@@ -66,9 +85,9 @@ impl Session {
             let mut transfer = Transfer::new();
             let spv = transfer.msg.add_spv(1);
             spv.push(soap::ParameterValue::new(
-                "Device.ManagementServer.ConnectionRequestUsername", "xsd:string", &cpe.connreq.username));
+                connreq_username_path, "xsd:string", &cpe.connreq.username));
             spv.push(soap::ParameterValue::new(
-                "Device.ManagementServer.ConnectionRequestPassword", "xsd:string", &cpe.connreq.password));
+                connreq_password_path, "xsd:string", &cpe.connreq.password));
             cpe.transfers.push_back(transfer);
 
             // Save configuration in a dedicated task
