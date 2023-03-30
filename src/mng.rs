@@ -79,9 +79,7 @@ async fn soap_response(soap_result: &Result<soap::Envelope>) -> Result<Response<
     }
 }
 
-async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
-    let content = utils::content(req).await?;
-    let serial_number = utils::req_path(req, 2);
+async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
     let mut envelope = soap::Envelope::new(0);
     let gpv = envelope.add_gpv();
     for param in content.split(";") {
@@ -91,9 +89,7 @@ async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     soap_response(&result).await
 }
 
-async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
-    let content = utils::content(req).await?;
-    let serial_number = utils::req_path(req, 2);
+async fn handle_spv_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
     let mut envelope = soap::Envelope::new(0);
     let spv = envelope.add_spv(1);
     let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(\w+)").unwrap();
@@ -110,7 +106,7 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     soap_response(&result).await
 }
 
-async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+async fn handle_list_request(acs: Arc<RwLock<Acs>>) -> Result<Response<Full<Bytes>>> {
     let acs = acs.read().await;
     let mut s = format!("{}x Managed CPEs:\n", acs.cpe_list.len());
 
@@ -121,12 +117,12 @@ async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingB
     utils::reply(200, s)
 }
 
-async fn handle_stats_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+async fn handle_stats_request() -> Result<Response<Full<Bytes>>> {
     let s = format!("Stats not implemented");
     utils::reply(200, s)
 }
 
-async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+async fn handle_welcome_request() -> Result<Response<Full<Bytes>>> {
     let mut s = format!("Welcome on ACS Server\n");
     s += "Usage:\n";
     s += "- List managed cpes by this acs\n";
@@ -141,7 +137,7 @@ async fn handle_welcome_request(_acs: Arc<RwLock<Acs>>, _req: &mut Request<Incom
     utils::reply(200, s)
 }
 
-async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+async fn handle_err404(req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
     let s = format!("Unknown request: {}\n", req.uri());
     utils::reply(404, s)
 }
@@ -151,13 +147,16 @@ async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) 
 // - Maintain the connection to CPE open as long as one management session is opened.
 //
 pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
-    let reply = match utils::req_path(&req, 1).as_str() {
-        "gpv"   => handle_gpv_request(acs, req).await,
-        "spv"   => handle_spv_request(acs, req).await,
-        "list"  => handle_list_request(acs, req).await,
-        "stats" => handle_stats_request(acs, req).await,
-        ""      => handle_welcome_request(acs, req).await,
-        _        => handle_err404(acs, req).await,
+    let command = utils::req_path(&req, 1);
+    let serial_number = utils::req_path(&req, 2);
+    let content = utils::content(req).await?;
+    let reply = match command.as_str() {
+        "gpv"   => handle_gpv_request(acs, &serial_number, &content).await,
+        "spv"   => handle_spv_request(acs, &serial_number, &content).await,
+        "list"  => handle_list_request(acs).await,
+        "stats" => handle_stats_request().await,
+        ""      => handle_welcome_request().await,
+        _        => handle_err404(req).await,
     };
 
     match reply {
