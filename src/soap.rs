@@ -615,6 +615,28 @@ impl Envelope {
     }
 }
 
+impl std::fmt::Display for Envelope {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(fault) = self.body.fault.first() {
+            return write!(f, "{} - {}",
+                fault.detail.cwmpfault.faultcode.text,
+                fault.detail.cwmpfault.faultstring.text);
+        }
+        else if let Some(response) = self.body.gpv_response.first() {
+            for pv in &response.parameter_list.parameter_values {
+                write!(f, "{}={}\n", pv.name, pv.value.text)?;
+            }
+            return write!(f, "");
+        }
+        else if let Some(response) = self.body.spv_response.first() {
+            return write!(f, "Status: {}", response.status);
+        }
+        else {
+            return write!(f, "Empty response");
+        }
+    }
+}
+
 #[test]
 fn test_bootstrap() {
     let xml: String = std::fs::read_to_string("test/bootstrap.xml").unwrap()

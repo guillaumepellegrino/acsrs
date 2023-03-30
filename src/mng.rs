@@ -23,76 +23,79 @@ use tokio::sync::{RwLock};
 use tokio::time::{Duration, timeout};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use regex::Regex;
-use eyre::{Result};
+use eyre::{Result, eyre, WrapErr};
 use crate::acs::{*};
 use crate::soap;
 use crate::utils;
 
-async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
-    let content = utils::content(req).await?;
-    let serial_number = utils::req_path(req, 2);
+async fn cpe_transfer(acs: Arc<RwLock<Acs>>, serial_number: &str, request: soap::Envelope) -> Result<soap::Envelope> {
+    // Get the CPE context from its serial number
     let acs = acs.read().await;
-    let mut cpe = match &acs.cpe_list.get(&serial_number) {
+    let mut cpe = match &acs.cpe_list.get(serial_number) {
         Some(cpe) => cpe.write().await,
-        None => {return utils::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
+        None => {return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));}
     };
     let connreq = cpe.connreq.clone();
 
-    // Add a transfer, here
+    // Add a transfer to the CPE, here
     let mut transfer = Transfer::new();
+    transfer.msg = request;
     let mut rx = transfer.rxchannel();
-    let gpv = transfer.msg.add_gpv();
-    for param in content.split(";") {
-        gpv.push(&param);
-    }
     cpe.transfers.push_back(transfer);
+
+    // Unlock CPE and ACS
     drop(cpe);
     drop(acs);
 
+    // Send the ConnectionRequest to CPE
     println!("[{}] Send ConnectionRequest to {}", serial_number, connreq.url);
     connreq.send().await?;
     println!("[{}] ConnectionRequest was acknowledged", serial_number);
 
-    let mut s = format!("> GetParameterValuesResponse from {}:\n", serial_number);
-    if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
-        if let Some(fault) = response.body.fault.first() {
-            s += &format!("Fault: {} - {}\n",
-                fault.detail.cwmpfault.faultcode.text,
-                fault.detail.cwmpfault.faultstring.text);
-            return utils::reply(400, s);
+    // Wait for our ACS server to get the transfer response
+    let rx_future = timeout(Duration::from_millis(60*1000), rx.recv());
+    let rx = rx_future.await
+        .wrap_err_with(|| {format!("ACS server failed to get a response from CPE")})?;
+    let response = match rx {
+        Some(response) => response,
+        None => {
+            return Err(eyre!("ACS server failed to get a response from CPE"));
         }
-        match response.body.gpv_response.first() {
-            Some(response) => {
-                for pv in &response.parameter_list.parameter_values {
-                    s += &format!("{}={}\n", pv.name, pv.value.text);
-                }
-                return utils::reply(200, s);
-            }
-            None => {
-                s += &format!("Error: Failed to get response from {}\n", connreq.url);
-                return utils::reply(404, s);
-            }
-        }
-    }
+    };
 
-    s += &format!("Timeout: No reply from {}\n", connreq.url);
-    return utils::reply(404, s);
+    Ok(response)
+}
+
+async fn soap_response(soap_result: &Result<soap::Envelope>) -> Result<Response<Full<Bytes>>> {
+    match soap_result {
+        Ok(envelope) => {
+            let s = format!("> {:?}:\n{}\n", envelope.kind(), envelope);
+            utils::reply(200, s)
+        },
+        Err(err) => {
+            let s = format!("> Error:\n{:?}\n", err);
+            utils::reply(400, s)
+        },
+    }
+}
+
+async fn handle_gpv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    let content = utils::content(req).await?;
+    let serial_number = utils::req_path(req, 2);
+    let mut envelope = soap::Envelope::new(0);
+    let gpv = envelope.add_gpv();
+    for param in content.split(";") {
+        gpv.push(&param);
+    }
+    let result = cpe_transfer(acs, &serial_number, envelope).await;
+    soap_response(&result).await
 }
 
 async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
     let content = utils::content(req).await?;
     let serial_number = utils::req_path(req, 2);
-    let acs = acs.read().await;
-    let mut cpe = match &acs.cpe_list.get(&serial_number) {
-        Some(cpe) => cpe.write().await,
-        None => {return utils::reply(404, format!("CPE with SN:{} is not registered\n", serial_number));}
-    };
-    let connreq = cpe.connreq.clone();
-
-    // Add a transfer, here
-    let mut transfer = Transfer::new();
-    let mut rx = transfer.rxchannel();
-    let spv = transfer.msg.add_spv(1);
+    let mut envelope = soap::Envelope::new(0);
+    let spv = envelope.add_spv(1);
     let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(\w+)").unwrap();
     for param in content.split(";") {
         let captures = re.captures(param).unwrap();
@@ -100,40 +103,11 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
         let base_type = captures.get(2).unwrap().as_str();
         let xsd_type = format!("xsd:{}", base_type);
         let value = captures.get(3).unwrap().as_str();
-        println!("SPV({},{},{})", key, xsd_type, value);
+        //println!("SPV({},{},{})", key, xsd_type, value);
         spv.push(soap::ParameterValue::new(key, &xsd_type, value));
     }
-
-    cpe.transfers.push_back(transfer);
-    drop(cpe);
-    drop(acs);
-
-    println!("[{}] Send ConnectionRequest to {}", serial_number, connreq.url);
-    connreq.send().await?;
-    println!("[{}] ConnectionRequest was acknowledged", serial_number);
-
-    let mut s = format!("> SetParameterValuesResponse from {}:\n", serial_number);
-    if let Some(response) = timeout(Duration::from_millis(60*1000), rx.recv()).await? {
-        if let Some(fault) = response.body.fault.first() {
-            s += &format!("Fault: {} - {}\n",
-                fault.detail.cwmpfault.faultcode.text,
-                fault.detail.cwmpfault.faultstring.text);
-            return utils::reply(400, s);
-        }
-        match response.body.spv_response.first() {
-            Some(response) => {
-                s += &format!("Status: {}\n", response.status);
-                return utils::reply(200, s);
-            }
-            None => {
-                s += &format!("Error: Failed to get response from {}\n", connreq.url);
-                return utils::reply(404, s);
-            }
-        }
-    }
-
-    s += &format!("Timeout: No reply from {}\n", connreq.url);
-    return utils::reply(404, s);
+    let result = cpe_transfer(acs, &serial_number, envelope).await;
+    soap_response(&result).await
 }
 
 async fn handle_list_request(acs: Arc<RwLock<Acs>>, _req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
@@ -173,9 +147,8 @@ async fn handle_err404(_acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) 
 }
 
 // TODO:
-// - Factorize code for GPV and SPV.
-// - Check if a session is already opened before sending a ConnectionRequest
-// - Maintain the connection to CPE open as long as one management session is opened. 
+// - Check if a session is already opened before sending a ConnectionRequest.
+// - Maintain the connection to CPE open as long as one management session is opened.
 //
 pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
     let reply = match utils::req_path(&req, 1).as_str() {
