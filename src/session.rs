@@ -177,6 +177,9 @@ impl Session {
         else if let Some(spv_response) = envelope.body.spv_response.first() {
             println!("[SN:{}][SID:{}][{}] Received: SPV Response = {}", self.sn, self.id, self.counter, spv_response.status);
         }
+        else if let Some(download_response) = envelope.body.download_response.first() {
+            println!("[SN:{}][SID:{}][{}] Received: Download Response = {}", self.sn, self.id, self.counter, download_response.status);
+        }
         else if let Some(fault) = envelope.body.fault.first() {
             println!("[SN:{}][SID:{}][{}] Received: Fault: {} - {}", self.sn, self.id, self.counter,
                 fault.detail.cwmpfault.faultcode.text,
