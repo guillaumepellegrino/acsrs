@@ -20,6 +20,8 @@ use bytes::Bytes;
 use http_body_util::Full;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use eyre::{Result};
 use crate::acs::{*};
@@ -198,17 +200,35 @@ impl Session {
         return self.cpe_check_transfers().await;
     }
 
-    async fn check_cpe_authorization(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    async fn handle_download(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+        let download = utils::req_path(&req, 1);
+        let path = utils::req_path(&req, 2);
+        let acs = self.acs.read().await;
+        let acsdir = acs.acsdir.clone();
+        drop(acs);
+        
+        let mut contents = vec![];
+        let filepath = acsdir.join(download).join(path);
+        let mut file = File::open(&filepath).await?;
+        file.read_to_end(&mut contents).await?;
+        let response = Response::new(Full::new(Bytes::from(contents)));
+        Ok(response)
+    }
+
+    async fn authorization_error(self: &mut Self, req: &mut Request<IncomingBody>) -> Option<Result<Response<Full<Bytes>>>> {
 
         match req.headers().get("authorization") {
             Some(wwwauth) => {
-                let wwwauth = wwwauth.to_str()?;
+                let wwwauth = match wwwauth.to_str() {
+                    Ok(value) => value,
+                    Err(e) => {return Some(Err(e.into()));},
+                };
                 if wwwauth == &self.acs.read().await.basicauth {
-                    self.handle_cpe_request(req).await
+                    None
                 }
                 else {
                     println!("[SN:??][SID:??][{}] Access forbidden: {}", self.counter, wwwauth);
-                    utils::reply(403, String::from("Forbidden\n"))
+                    Some(utils::reply(403, String::from("Forbidden\n")))
                 }
             }
             None => {
@@ -218,7 +238,11 @@ impl Session {
                     .header("User-Agent", "acsrs")
                     .header("WWW-Authenticate", "Basic realm=\"acrsrs world\"")
                     .status(401);
-                Ok(builder.body(Full::new(Bytes::from(response)))?)
+
+                match builder.body(Full::new(Bytes::from(response))) {
+                    Ok(body) => Some(Ok(body)),
+                    Err(e) => Some(Err(e.into())),
+                }
             }
         }
     }
@@ -226,8 +250,15 @@ impl Session {
 
     pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
         self.counter += 1;
-        let reply = match req.uri().path() {
-            "/cwmpWeb/CPEMgt" => self.check_cpe_authorization(req).await,
+
+        if let Some(reply) = self.authorization_error(req).await {
+            return reply;
+        }
+
+        let command = utils::req_path(&req, 1);
+        let reply = match command.as_str() {
+            "cwmpWeb" => self.handle_cpe_request(req).await,
+            "download" => self.handle_download(req).await,
             _                 => utils::reply(403, String::from("Forbidden\n")),
         };
 
@@ -237,4 +268,3 @@ impl Session {
         }
     }
 }
-

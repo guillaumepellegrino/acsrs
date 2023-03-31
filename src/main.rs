@@ -64,9 +64,9 @@ async fn main() -> Result<()> {
         Some(value) => value.clone(),
         None =>  home().join(".acsrs"),
     };
-    let savefile = acsdir.join("config.toml");
     let identityfile = acsdir.join("identity.p12");
     let pidfile = acsdir.join("acsrs.pid");
+    let downloaddir = acsdir.join("download");
 
     // Create config directory if doesn't exist
     if !acsdir.is_dir() {
@@ -74,18 +74,22 @@ async fn main() -> Result<()> {
         std::fs::create_dir(&acsdir)
             .wrap_err_with(|| {format!("Failed to create acs config directory at {:?}", acsdir)})?;
     }
+    if !downloaddir.is_dir() {
+        std::fs::create_dir(&downloaddir)
+            .wrap_err_with(|| {format!("Failed to create download directory at {:?}", downloaddir)})?;
+    }
 
     // Restore ACS from config file or create a new one
-    let acs = match Acs::restore(&savefile).await {
+    let acs = match Acs::restore(&acsdir).await {
         Ok(acs) => {
-            println!("ACS config restored from {:?}", savefile);
+            println!("ACS config restored from {:?}", acsdir);
             acs
         },
         Err(err) => {
-            println!("Could not restore ACS config from {:?}: {:?}", savefile, err);
-            let acs = Acs::new(&savefile);
+            println!("Could not restore ACS config from {:?}: {:?}", acsdir, err);
+            let acs = Acs::new(&acsdir);
             if let Err(err) = acs.save().await {
-                println!("Failed to save ACS config to {:?}: {:?}", savefile, err);
+                println!("Failed to save ACS config to {:?}: {:?}", acsdir, err);
             }
             acs
         },

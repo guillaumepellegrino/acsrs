@@ -24,6 +24,8 @@ use tokio::time::{Duration, timeout};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use regex::Regex;
 use eyre::{Result, eyre, WrapErr};
+use serde::Deserialize;
+use serde::Serialize;
 use crate::acs::{*};
 use crate::soap;
 use crate::utils;
@@ -106,6 +108,59 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content:
     soap_response(&result).await
 }
 
+async fn handle_download_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+    struct Download {
+        #[serde(default)]
+        command_key: String,
+
+        #[serde(default)]
+        file_type: String,
+
+        #[serde(default)]
+        url: String,
+
+        #[serde(default)]
+        username: String,
+
+        #[serde(default)]
+        password: String,
+
+        #[serde(default)]
+        file_size: i64,
+
+        #[serde(default)]
+        target_file_name: String,
+
+        #[serde(default)]
+        delay_seconds: i32,
+
+        #[serde(default)]
+        success_url: String,
+
+        #[serde(default)]
+        failure_url: String,
+    }
+    let download: Download = serde_qs::from_str(&content)?;
+
+    let mut envelope = soap::Envelope::new(0);
+    let soap_download = envelope.add_download();
+    soap_download
+        .set_command_key(&download.command_key)
+        .set_file_type(&download.file_type)
+        .set_url(&download.url)
+        .set_username(&download.username)
+        .set_password(&download.password)
+        .set_file_size(download.file_size)
+        .set_target_file_name(&download.target_file_name)
+        .set_delay_seconds(download.delay_seconds)
+        .set_success_url(&download.success_url)
+        .set_failure_url(&download.failure_url);
+
+    let result = cpe_transfer(acs, &serial_number, envelope).await;
+    soap_response(&result).await
+}
+
 async fn handle_list_request(acs: Arc<RwLock<Acs>>) -> Result<Response<Full<Bytes>>> {
     let acs = acs.read().await;
     let mut s = format!("{}x Managed CPEs:\n", acs.cpe_list.len());
@@ -151,12 +206,13 @@ pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     let serial_number = utils::req_path(&req, 2);
     let content = utils::content(req).await?;
     let reply = match command.as_str() {
-        "gpv"   => handle_gpv_request(acs, &serial_number, &content).await,
-        "spv"   => handle_spv_request(acs, &serial_number, &content).await,
-        "list"  => handle_list_request(acs).await,
-        "stats" => handle_stats_request().await,
-        ""      => handle_welcome_request().await,
-        _        => handle_err404(req).await,
+        "gpv"       => handle_gpv_request(acs, &serial_number, &content).await,
+        "spv"       => handle_spv_request(acs, &serial_number, &content).await,
+        "download"  => handle_download_request(acs, &serial_number, &content).await,
+        "list"      => handle_list_request(acs).await,
+        "stats"     => handle_stats_request().await,
+        ""          => handle_welcome_request().await,
+        _           => handle_err404(req).await,
     };
 
     match reply {

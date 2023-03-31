@@ -52,7 +52,7 @@ pub struct Acs {
     pub config: db::AcsConfig,
     pub basicauth: String,
     pub cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
-    savefile: std::path::PathBuf,
+    pub acsdir: std::path::PathBuf,
 }
 
 impl Transfer {
@@ -103,7 +103,7 @@ impl Connreq {
 }
 
 impl Acs {
-    pub fn new(savefile: &std::path::Path) -> Self {
+    pub fn new(acsdir: &std::path::Path) -> Self {
         let mut acs = Self::default();
         acs.config = db::AcsConfig {
             hostname: String::new(),
@@ -116,7 +116,7 @@ impl Acs {
             management_address: String::from("0.0.0.0:8000"),
         };
         acs.basicauth = Self::basicauth(&acs.config.username, &acs.config.password);
-        acs.savefile = savefile.to_path_buf();
+        acs.acsdir = acsdir.to_path_buf();
         acs
     }
 
@@ -126,8 +126,9 @@ impl Acs {
         format!("Basic {}", token64)
     }
 
-    pub async fn save_at(self: &Self, path: &std::path::Path) -> Result<()> {
-        println!("Save ACS config at {:?}", path);
+    pub async fn save(self: &Self) -> Result<()> {
+        let savefile = self.acsdir.join("config.toml");
+        println!("Save ACS config at {:?}", savefile);
 
         let mut db = db::Acs::default();
         db.config = self.config.clone();
@@ -143,19 +144,16 @@ impl Acs {
             db.cpe.push(elem);
         }
 
-        db.save(path)
+        db.save(&savefile)
     }
 
-    pub async fn save(self: &Self) -> Result<()> {
-        self.save_at(&self.savefile).await
-    }
-
-    pub async fn restore(path: &std::path::Path) -> Result<Acs> {
-        let db = db::Acs::restore(path)?;
+    pub async fn restore(acsdir: &std::path::Path) -> Result<Acs> {
+        let savefile = acsdir.join("config.toml");
+        let db = db::Acs::restore(&savefile)?;
         let mut acs = Self::default();
         acs.config = db.config.clone();
         acs.basicauth = Acs::basicauth(&acs.config.username, &acs.config.password);
-        acs.savefile = path.to_path_buf();
+        acs.acsdir = acsdir.to_path_buf();
 
         for elem in &db.cpe {
             let mut cpe = CPE::default();
@@ -189,7 +187,6 @@ impl Acs {
 #[tokio::test]
 async fn test_acs_save_restore() {
     let tmp = std::path::PathBuf::from("/tmp");
-    let savefile = std::path::PathBuf::from("/tmp/acs.toml");
     let mut acs = Acs::new(&tmp);
 
     let mut cpe1 = CPE::default();
@@ -200,9 +197,9 @@ async fn test_acs_save_restore() {
     cpe2.connreq.url = String::from("http://192.168.1.X:7547/CPE2");
     acs.cpe_list.insert("CPE2_SN".to_string(), Arc::new(RwLock::new(cpe2)));
 
-    acs.save_at(&savefile).await.unwrap();
+    acs.save().await.unwrap();
 
-    let restored = Acs::restore(&savefile).await.unwrap();
+    let restored = Acs::restore(&tmp).await.unwrap();
     assert_eq!(&restored.config.username, &acs.config.username);
     assert_eq!(&restored.config.password, &acs.config.password);
     assert_eq!(&restored.basicauth, &acs.basicauth);
