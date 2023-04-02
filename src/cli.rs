@@ -2,12 +2,32 @@ use eyre::{Result, eyre};
 use inquire::Text;
 use inquire::ui::RenderConfig;
 use inquire::ui::Styled;
+use inquire::CustomUserError;
 
 struct Cli {
     quit: bool,
     host: String,
     client: reqwest::Client,
     connectedto: Option<String>,
+}
+
+fn suggester(input: &str) -> Result<Vec<String>, CustomUserError> {
+    let suggestions = [
+        "help",
+        "list",
+        "connect ",
+        "disconnect",
+        "get ",
+        "set ",
+    ];
+    let mut list = Vec::<String>::new();
+    for suggestion in suggestions {
+        if suggestion.contains(input) {
+            list.push(String::from(suggestion));
+        }
+    }
+
+    Ok(list)
 }
 
 impl Cli {
@@ -38,10 +58,18 @@ impl Cli {
     }
 
     async fn get(self: &mut Self, _path: Option<&str>) -> Result<()> {
+        if self.connectedto == None {
+            return Err(eyre!("Not connected !"));
+        }
+
         Ok(())
     }
 
     async fn set(self: &mut Self, _path: Option<&str>) -> Result<()> {
+        if self.connectedto == None {
+            return Err(eyre!("Not connected !"));
+        }
+
         Ok(())
     }
 
@@ -60,13 +88,13 @@ impl Cli {
     fn help(self: &Self) {
         println!("acscli: interactive cli for ACSRS");
         println!("Availables commands:");
+        println!(" - help: Display this help");
         println!(" - list: Show connected CPEs to this ACS");
         println!(" - connect [SN] : Connect to CPE specified by this Serial Number");
         println!(" - disconnect :  Disconnect from the current CPE");
         println!(" - get [path] : Get object or parameter value");
         println!(" - set [path] : Set Parameter value");
         //println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
-        println!(" - help: Display this help");
     }
 
     async fn evlp_one(self: &mut Self) -> Result<()> {
@@ -77,9 +105,9 @@ impl Cli {
 
         let render_config = RenderConfig::default()
             .with_prompt_prefix(Styled::new(""));
-
         let line = Text::new(&prefix)
             .with_render_config(render_config)
+            .with_autocomplete(suggester)
             .prompt()?;
 
         let mut split = line.split(' ');
@@ -95,6 +123,7 @@ impl Cli {
             "cd" => {self.change_directory().await?;},
             "h"|"help" => {self.help();},
             "q"|"quit" => {self.quit = true},
+            "" => {},
             _ => {return Err(eyre!("Unknown command '{}'", cmd));},
         }
 

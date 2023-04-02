@@ -108,6 +108,51 @@ async fn handle_spv_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content:
     soap_response(&result).await
 }
 
+async fn handle_connect_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    /*
+    struct TR069Session {
+        // Reference to the associated CPE
+        cpe: Option<Arc<RwLock<CPE>>>,
+        transfers: mpmc::Receiver<Transfer>,
+    }
+
+    struct CPEController {
+        cpe: Option<Arc<RwLock<CPE>>>,
+        transfers_tx: mpmc::Sender<Transfer>,
+    }
+
+    struct CPE {
+        tr069_session_refcount: AtomicI32,
+        cpe_controllers_refcount: AtomicI32,
+        transfers_tx: mpmc::Sender<Transfer>,
+        transfers_rx: mpmc::Receiver<Transfer>,
+    }
+
+    struct ManagementSession {
+        // List of CPEController in use by the ManagementSession.
+        cpe_list: HashMap<String, CPEController>,
+    }
+
+    impl CPE {
+        fn open_session() => CPEController;
+    }
+    impl CPEController {
+        fn add_transfer(msg: soap::Body) -> Result<mpsc::Receiver<soap::Body>>;
+    }
+
+
+    mng::Session.init() ==> CPE.open_session()->CPEController
+
+    mng::Session.add_transfer() => CPEController.add_transfer();
+        if !session {self.sendConnRequest()}
+        
+    }
+
+    */
+
+    utils::reply(400, String::from("not implemented"))
+}
+
 async fn handle_download_request(acs: Arc<RwLock<Acs>>, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
     #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
     struct Download {
@@ -208,6 +253,7 @@ pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
     let reply = match command.as_str() {
         "gpv"       => handle_gpv_request(acs, &serial_number, &content).await,
         "spv"       => handle_spv_request(acs, &serial_number, &content).await,
+        "connect"   => handle_connect_request(acs, &serial_number, &content).await,
         "download"  => handle_download_request(acs, &serial_number, &content).await,
         "list"      => handle_list_request(acs).await,
         "stats"     => handle_stats_request().await,
@@ -219,4 +265,21 @@ pub async fn handle_request(acs: Arc<RwLock<Acs>>, req: &mut Request<IncomingBod
         Ok(reply) => Ok(reply),
         Err(error) => utils::reply_error(error),
     }
+}
+
+#[tokio::test]
+async fn test_mpmc() {
+    let (tx, rx) = flume::unbounded();
+    let rx2 = rx.clone();
+
+    tx.send_async(42).await.unwrap();
+    tx.send_async(43).await.unwrap();
+    tx.send_async(44).await.unwrap();
+
+    assert_eq!(rx.recv_async().await.unwrap(), 42);
+
+    tokio::spawn(async move {
+        assert_eq!(rx2.recv_async().await.unwrap(), 43);
+        assert_eq!(rx2.recv_async().await.unwrap(), 44);
+    });
 }
