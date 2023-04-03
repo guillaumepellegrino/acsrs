@@ -15,8 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::sync::{Arc, atomic::{AtomicI32, Ordering}};
-use std::collections::VecDeque;
+use std::sync::{Arc};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tokio;

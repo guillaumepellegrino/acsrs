@@ -35,6 +35,7 @@ use hyper::service::service_fn;
 use hyper::{Request};
 use crate::acs::{*};
 use crate::session::{*};
+use crate::mng::ManagementSession;
 use clap::{arg, command};
 use eyre::{Result, eyre, WrapErr};
 
@@ -233,10 +234,12 @@ async fn main() -> Result<()> {
             let (stream, _) = mng_listener.accept().await.unwrap();
             let acs = mng_acs.clone();
             tokio::task::spawn(async move {
+                let session = Arc::new(RwLock::new(ManagementSession::new(acs)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
-                    let acs = acs.clone();
+                    let session = session.clone();
                     return async move {
-                        return mng::handle_request(acs, &mut req).await;
+                        let mut session = session.write().await;
+                        return session.handle(&mut req).await;
                     };
                 };
                 if let Err(err) = http1::Builder::new()

@@ -42,7 +42,7 @@ pub struct TR069Session {
 impl TR069Session {
     pub fn new(acs: Arc<RwLock<Acs>>) -> Self {
         Self {
-            acs: acs.clone(),
+            acs: acs,
             cpe: None,
             observer: None,
             refcount: None,
