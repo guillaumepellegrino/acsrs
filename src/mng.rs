@@ -131,10 +131,6 @@ impl ManagementSession {
         Self::soap_response(&result).await
     }
 
-    async fn handle_connect_request(self: &Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
-        utils::reply(400, String::from("not implemented"))
-    }
-
     async fn handle_download_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
         struct Download {
@@ -235,7 +231,6 @@ impl ManagementSession {
         let reply = match command.as_str() {
             "gpv"       => self.handle_gpv_request(&serial_number, &content).await,
             "spv"       => self.handle_spv_request(&serial_number, &content).await,
-            "connect"   => self.handle_connect_request(&serial_number, &content).await,
             "download"  => self.handle_download_request(&serial_number, &content).await,
             "list"      => self.handle_list_request().await,
             "stats"     => self.handle_stats_request().await,

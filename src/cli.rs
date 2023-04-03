@@ -4,6 +4,7 @@ use inquire::ui::RenderConfig;
 use inquire::ui::Styled;
 use inquire::CustomUserError;
 
+// TODO: Implement a more UNIX like command-line cli
 struct Cli {
     quit: bool,
     host: String,
@@ -14,6 +15,7 @@ struct Cli {
 fn suggester(input: &str) -> Result<Vec<String>, CustomUserError> {
     let suggestions = [
         "help",
+        "quit",
         "list",
         "connect ",
         "disconnect",
@@ -44,10 +46,12 @@ impl Cli {
         let serial_number = serial_number.ok_or(eyre!("Missing Serial Number argument"))?;
         println!("Connect to {}", serial_number);
 
+        /*
         let url = format!("{}/connect/{}", self.host, serial_number);
         let res = self.client.post(&url).send().await?;
         let content = res.text().await?;
         println!("{}", content);
+        */
         self.connectedto = Some(String::from(serial_number));
         Ok(())
     }
@@ -57,18 +61,34 @@ impl Cli {
         Ok(())
     }
 
-    async fn get(self: &mut Self, _path: Option<&str>) -> Result<()> {
-        if self.connectedto == None {
-            return Err(eyre!("Not connected !"));
-        }
+    async fn get(self: &mut Self, path: Option<&str>) -> Result<()> {
+        let serial_number = match &self.connectedto {
+            Some(value) => value,
+            None => {return Err(eyre!("Not connected !"));},
+        };
+        let path = path.ok_or(eyre!("Missing path argument"))?;
+        let url = format!("{}/gpv/{}", self.host, serial_number);
+        let res = self.client.post(&url)
+            .body(String::from(path))
+            .send().await?;
+        let content = res.text().await?;
+        println!("{}", content);
 
         Ok(())
     }
 
-    async fn set(self: &mut Self, _path: Option<&str>) -> Result<()> {
-        if self.connectedto == None {
-            return Err(eyre!("Not connected !"));
-        }
+    async fn set(self: &mut Self, path: Option<&str>) -> Result<()> {
+        let serial_number = match &self.connectedto {
+            Some(value) => value,
+            None => {return Err(eyre!("Not connected !"));},
+        };
+        let path = path.ok_or(eyre!("Missing path argument"))?;
+        let url = format!("{}/spv/{}", self.host, serial_number);
+        let res = self.client.post(&url)
+            .body(String::from(path))
+            .send().await?;
+        let content = res.text().await?;
+        println!("{}", content);
 
         Ok(())
     }
@@ -89,11 +109,12 @@ impl Cli {
         println!("acscli: interactive cli for ACSRS");
         println!("Availables commands:");
         println!(" - help: Display this help");
+        println!(" - quit: Quit the application");
         println!(" - list: Show connected CPEs to this ACS");
         println!(" - connect [SN] : Connect to CPE specified by this Serial Number");
         println!(" - disconnect :  Disconnect from the current CPE");
         println!(" - get [path] : Get object or parameter value");
-        println!(" - set [path] : Set Parameter value");
+        println!(" - set [path]<type>=value : Set Parameter value");
         //println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
     }
 

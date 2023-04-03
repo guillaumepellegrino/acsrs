@@ -101,7 +101,9 @@ impl TR069Session {
 
             drop(cpe);
             let controller = CPEController::new(cpelock.clone()).await;
-            controller.add_transfer(transfer).await;
+            if let Err(err) = controller.add_transfer(transfer).await {
+                println!("[SN:{}][SID:{}][{}] Failed to configure CPE ConnectionRequest: {:?}", self.sn, self.id, self.counter, err);
+            }
 
             // Save configuration in a dedicated task
             let acs = self.acs.clone();
