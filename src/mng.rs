@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 use std::sync::{Arc};
+use std::collections::HashMap;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 use bytes::Bytes;
 use http_body_util::{Full};
 use tokio;
@@ -30,31 +32,50 @@ use crate::acs::{*};
 use crate::soap;
 use crate::utils;
 
+
 pub struct ManagementSession {
     acs: Arc<RwLock<Acs>>,
+
+    // CPEController used during the HTTP ManagementSession are stored in a HashMap
+    // As long as the HTTP ManagementSession is alive the associated TR-069 sessions are kept alive as well.
+    //
+    // This is done to implement a fast and reactive cli. The HTTPs connection does not need to be
+    // reestablished at each cli commands.
+    controller_list: HashMap<String, CPEController>,
 }
 
 impl ManagementSession {
     pub fn new(acs: Arc<RwLock<Acs>>) -> Self {
         Self {
             acs: acs,
+            controller_list: HashMap::<String, CPEController>::new(),
         }
     }
 
-    async fn cpe_transfer(self: &Self, serial_number: &str, request: soap::Envelope) -> Result<soap::Envelope> {
-        // Get the CPE context from its serial number
-        let cpe = match self.acs.read().await.cpe_list.get(serial_number) {
-            Some(cpe) => cpe.clone(),
-            None => {return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));}
-        };
-
-
-        // Add a transfer to the CPE, here
-        let controller = CPEController::new(cpe).await;
+    async fn cpe_transfer(self: &mut Self, serial_number: &str, request: soap::Envelope) -> Result<soap::Envelope> {
+        // Create a new transfer for the CPE
         let mut transfer = Transfer::new();
         transfer.msg = request;
         let mut rx = transfer.rxchannel();
-        controller.add_transfer(transfer).await?;
+
+        // Get or add a CPE Controller 
+        // and then add the transfer to it.
+        let entry = self.controller_list.entry(String::from(serial_number));
+        match entry {
+            Occupied(o) => {
+                let controller = o.get();
+                controller.add_transfer(transfer).await?;
+            },
+            Vacant(v) => {
+                // Get the CPE context from its serial number
+                let cpe = match self.acs.read().await.cpe_list.get(serial_number) {
+                    Some(cpe) => cpe.clone(),
+                    None => {return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));}
+                };
+                let controller = v.insert(CPEController::new(cpe.clone()).await);
+                controller.add_transfer(transfer).await?;
+            },
+        };
 
         // Wait for our ACS server to get the transfer response
         let rx_future = timeout(Duration::from_millis(60*1000), rx.recv());
@@ -83,7 +104,7 @@ impl ManagementSession {
         }
     }
 
-    async fn handle_gpv_request(self: &Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_gpv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new(0);
         let gpv = envelope.add_gpv();
         for param in content.split(";") {
@@ -93,7 +114,7 @@ impl ManagementSession {
         Self::soap_response(&result).await
     }
 
-    async fn handle_spv_request(self: &Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_spv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new(0);
         let spv = envelope.add_spv(1);
         let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(\w+)").unwrap();
@@ -114,7 +135,7 @@ impl ManagementSession {
         utils::reply(400, String::from("not implemented"))
     }
 
-    async fn handle_download_request(self: &Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_download_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
         struct Download {
             #[serde(default)]

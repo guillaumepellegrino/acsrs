@@ -100,7 +100,6 @@ impl TR069Session {
                 connreq_password_path, "xsd:string", &cpe.connreq.password));
 
             drop(cpe);
-
             let controller = CPEController::new(cpelock.clone()).await;
             controller.add_transfer(transfer).await;
 

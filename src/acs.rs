@@ -55,6 +55,7 @@ pub struct CPE {
 }
 
 pub struct CPEController {
+    cpe: Arc<RwLock<CPE>>,
     transfers_tx: flume::Sender<Transfer>,
     _refcount: Arc<()>,
 }
@@ -146,26 +147,29 @@ impl CPE {
 }
 
 impl CPEController  {
-    pub async fn new(cpe: Arc<RwLock<CPE>>) -> Self  {
-        let read = cpe.read().await;
-        let controller = Self {
-            transfers_tx: read.transfers_tx.clone(),
-            _refcount: read.cpe_controllers_refcount.clone(),
-        };
-        if !read.tr069_session_opened() {
-            let connreq = read.connreq.clone();
-            drop(read);
-
-            // Send the ConnectionRequest to CPE
-            println!("Send ConnectionRequest to {}", connreq.url);
-            connreq.send().await.unwrap(); // TODO: remove unwrap
-            println!("ConnectionRequest was acknowledged");
+    pub async fn new(cpelock: Arc<RwLock<CPE>>) -> Self  {
+        let cpe = cpelock.read().await;
+        Self {
+            cpe: cpelock.clone(),
+            transfers_tx: cpe.transfers_tx.clone(),
+            _refcount: cpe.cpe_controllers_refcount.clone(),
         }
-        controller
     }
 
     pub async fn add_transfer(self: &Self, transfer: Transfer) -> Result<()> {
         self.transfers_tx.send_async(transfer).await?;
+
+        let cpe = self.cpe.read().await;
+        if !cpe.tr069_session_opened() {
+            let connreq = cpe.connreq.clone();
+            drop(cpe);
+
+            // Send the ConnectionRequest to CPE
+            println!("Send ConnectionRequest to {}", connreq.url);
+            connreq.send().await?;
+            println!("ConnectionRequest was acknowledged");
+        }
+
         Ok(())
     }
 }
