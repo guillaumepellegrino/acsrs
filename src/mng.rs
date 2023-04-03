@@ -32,27 +32,18 @@ use crate::utils;
 
 async fn cpe_transfer(acs: Arc<RwLock<Acs>>, serial_number: &str, request: soap::Envelope) -> Result<soap::Envelope> {
     // Get the CPE context from its serial number
-    let acs = acs.read().await;
-    let mut cpe = match &acs.cpe_list.get(serial_number) {
-        Some(cpe) => cpe.write().await,
+    let cpe = match acs.read().await.cpe_list.get(serial_number) {
+        Some(cpe) => cpe.clone(),
         None => {return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));}
     };
-    let connreq = cpe.connreq.clone();
+
 
     // Add a transfer to the CPE, here
+    let controller = CPEController::new(cpe).await;
     let mut transfer = Transfer::new();
     transfer.msg = request;
     let mut rx = transfer.rxchannel();
-    cpe.transfers.push_back(transfer);
-
-    // Unlock CPE and ACS
-    drop(cpe);
-    drop(acs);
-
-    // Send the ConnectionRequest to CPE
-    println!("[{}] Send ConnectionRequest to {}", serial_number, connreq.url);
-    connreq.send().await?;
-    println!("[{}] ConnectionRequest was acknowledged", serial_number);
+    controller.add_transfer(transfer).await?;
 
     // Wait for our ACS server to get the transfer response
     let rx_future = timeout(Duration::from_millis(60*1000), rx.recv());
@@ -122,8 +113,8 @@ async fn handle_connect_request(acs: Arc<RwLock<Acs>>, serial_number: &str, cont
     }
 
     struct CPE {
-        tr069_session_refcount: AtomicI32,
-        cpe_controllers_refcount: AtomicI32,
+        tr069_session_refcount: Arc<AtomicI32>,
+        cpe_controllers_refcount: Arc<AtomicI32>,
         transfers_tx: mpmc::Sender<Transfer>,
         transfers_rx: mpmc::Receiver<Transfer>,
     }
@@ -274,7 +265,6 @@ async fn test_mpmc() {
 
     tx.send_async(42).await.unwrap();
     tx.send_async(43).await.unwrap();
-    tx.send_async(44).await.unwrap();
 
     assert_eq!(rx.recv_async().await.unwrap(), 42);
 
@@ -282,4 +272,6 @@ async fn test_mpmc() {
         assert_eq!(rx2.recv_async().await.unwrap(), 43);
         assert_eq!(rx2.recv_async().await.unwrap(), 44);
     });
+
+    tx.send_async(44).await.unwrap();
 }

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::sync::{Arc};
+use std::sync::{Arc, atomic::{AtomicI32, Ordering}};
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -40,11 +40,24 @@ pub struct Transfer {
     pub observer: Option<mpsc::Sender<soap::Envelope>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CPE {
     pub device_id: soap::DeviceId,
     pub connreq: Connreq,
-    pub transfers: VecDeque<Transfer>,
+
+    /** Number of TR069Session opened for this CPE + 1 */
+    tr069_session_refcount: Arc<()>,
+
+    /** Number of CPEController running for this CPE + 1 */
+    cpe_controllers_refcount: Arc<()>,
+
+    transfers_tx: flume::Sender<Transfer>,
+    transfers_rx: flume::Receiver<Transfer>,
+}
+
+pub struct CPEController {
+    transfers_tx: flume::Sender<Transfer>,
+    _refcount: Arc<()>,
 }
 
 #[derive(Debug, Default)]
@@ -99,6 +112,62 @@ impl Connreq {
             reqwest::StatusCode::OK => Ok(()),
             _ => Err(eyre!("ConnectionRequest: Authentication failed")),
         }
+    }
+}
+
+impl Default for CPE {
+    fn default() -> Self {
+        let (tx, rx) = flume::unbounded();
+        Self {
+            device_id: soap::DeviceId::default(),
+            connreq: Connreq::default(),
+            tr069_session_refcount: Arc::new(()),
+            cpe_controllers_refcount: Arc::new(()),
+            transfers_tx: tx,
+            transfers_rx: rx,
+        }
+    }
+}
+
+impl CPE {
+    pub fn tr069_session_opened(self: &Self) -> bool {
+        Arc::strong_count(&self.tr069_session_refcount) > 1
+    }
+
+    pub fn cpe_controller_running(self: &Self) -> bool {
+        Arc::strong_count(&self.cpe_controllers_refcount) > 1
+    }
+
+    pub fn get_tr069_session_refcount(self: &Self) -> Arc<()> {
+        self.tr069_session_refcount.clone()
+    }
+    pub fn get_transfers_rx(self: &Self) -> flume::Receiver<Transfer> {
+        self.transfers_rx.clone()
+    }
+}
+
+impl CPEController  {
+    pub async fn new(cpe: Arc<RwLock<CPE>>) -> Self  {
+        let read = cpe.read().await;
+        let controller = Self {
+            transfers_tx: read.transfers_tx.clone(),
+            _refcount: read.cpe_controllers_refcount.clone(),
+        };
+        if !read.tr069_session_opened() {
+            let connreq = read.connreq.clone();
+            drop(read);
+
+            // Send the ConnectionRequest to CPE
+            println!("Send ConnectionRequest to {}", connreq.url);
+            connreq.send().await.unwrap(); // TODO: remove unwrap
+            println!("ConnectionRequest was acknowledged");
+        }
+        controller
+    }
+
+    pub async fn add_transfer(self: &Self, transfer: Transfer) -> Result<()> {
+        self.transfers_tx.send_async(transfer).await?;
+        Ok(())
     }
 }
 

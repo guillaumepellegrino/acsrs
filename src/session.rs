@@ -20,6 +20,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use tokio;
 use tokio::sync::{RwLock, mpsc};
+use tokio::time::{Duration, timeout};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
@@ -28,21 +29,23 @@ use crate::acs::{*};
 use crate::soap;
 use crate::utils;
 
-pub struct Session {
+pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,
     cpe: Option<Arc<RwLock<CPE>>>,
     observer: Option<mpsc::Sender<soap::Envelope>>,
+    refcount: Option<Arc<()>>,
     sn: String,
     id: u32,
     counter: u32,
 }
 
-impl Session {
+impl TR069Session {
     pub fn new(acs: Arc<RwLock<Acs>>) -> Self {
-        Session {
+        Self {
             acs: acs.clone(),
             cpe: None,
             observer: None,
+            refcount: None,
             sn: String::new(),
             id: 0,
             counter: 0,
@@ -78,6 +81,9 @@ impl Session {
         let cpelock = acs.cpe_list.entry(inform.device_id.serial_number.clone()).or_default();
         self.cpe = Some(cpelock.clone());
         let mut cpe = cpelock.write().await;
+        if self.refcount == None {
+            self.refcount = Some(cpe.get_tr069_session_refcount());
+        }
         cpe.device_id = inform.device_id.clone();
         if cpe.connreq.url != connreq_url {
             println!("connreq.url is not configred: Configure ConnectionRequest");
@@ -92,7 +98,11 @@ impl Session {
                 connreq_username_path, "xsd:string", &cpe.connreq.username));
             spv.push(soap::ParameterValue::new(
                 connreq_password_path, "xsd:string", &cpe.connreq.password));
-            cpe.transfers.push_back(transfer);
+
+            drop(cpe);
+
+            let controller = CPEController::new(cpelock.clone()).await;
+            controller.add_transfer(transfer).await;
 
             // Save configuration in a dedicated task
             let acs = self.acs.clone();
@@ -105,25 +115,40 @@ impl Session {
     }
 
     async fn cpe_check_transfers(self: &mut Self) ->  Result<Response<Full<Bytes>>> {
-        let mut cpe = match &self.cpe {
-            Some(cpe) => cpe.write().await,
+        let mut transfer;
+        let cpelock = match &self.cpe {
+            Some(cpelock) => cpelock,
             None => {
                 println!("[SN:??][SID:??][{}] Send: Reply with no content (Unknown CPE)", self.counter);
                 return utils::reply(204, String::from(""));
             }
         };
-
-        let mut transfer = match cpe.transfers.pop_front() {
-            Some(transfer) => transfer,
-            None => {
-                println!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
-                    self.sn, self.id, self.counter);
-                return utils::reply(204, String::from(""));
-            }
-        };
+        let rx = cpelock.read().await.get_transfers_rx();
+        loop {
+            let rx_future = timeout(Duration::from_millis(3*1000), rx.recv_async());
+            match rx_future.await {
+                Ok(rx) => {
+                    transfer = match rx {
+                        Ok(transfer) => transfer,
+                        Err(err) => {
+                            println!("[SN:{}][SID:{}][{}] Send: Reply with no content (Error reading transfer queue: {:?})",
+                            self.sn, self.id, self.counter, err);
+                            return utils::reply(204, String::from(""));
+                        }
+                    };
+                    break;
+                },
+                Err(_) => {
+                    if !cpelock.read().await.cpe_controller_running() {
+                        println!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
+                            self.sn, self.id, self.counter);
+                        return utils::reply(204, String::from(""));
+                    }
+                }
+            };
+        }
         transfer.msg.header.id.text = self.id;
         self.observer = transfer.observer;
-        drop(cpe);
 
         println!("[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
                     self.sn, self.id, self.counter, transfer.msg.kind());
