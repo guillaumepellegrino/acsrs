@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "acsrs"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64",
  "bytes",
@@ -24,6 +24,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_qs",
+ "termios",
  "tokio",
  "tokio-native-tls",
  "toml",
@@ -1282,6 +1283,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be55cf8942feac5c765c2c993422806843c9a9a45d4d5c407ad6dd2ea95eb9b6"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "termios"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "411c5bf740737c7918b8b1fe232dca4dc9f8e754b8ad5e20966814001ed0ac6b"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
