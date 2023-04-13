@@ -10,6 +10,14 @@ authors = ["Guillaume Pellegrino <guillaume.pellegrino@yahoo.com>"]
 keywords = ["acs", "tr069", "cwmp", "network"]
 categories = ["network-programming"]
 
+[[bin]]
+name = "acsrs"
+path = "src/main.rs"
+
+[[bin]]
+name = "acscli"
+path = "src/acscli.rs"
+
 [dependencies]
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
@@ -30,7 +38,6 @@ base64 = "0.21.0"
 clap = { version = "4.1.14", features = ["cargo"] }
 daemonize = "0.5.0"
 eyre = "0.6.8"
-inquire = "0.6.0"
 flume = "0.10.14"
 termios = "0.3.3"
 

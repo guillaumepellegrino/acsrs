@@ -21,7 +21,6 @@ mod session;
 mod soap;
 mod utils;
 mod db;
-mod cli;
 
 use std::io::Read;
 use std::sync::{Arc};
@@ -59,13 +58,8 @@ async fn main() -> Result<()> {
     let matches = command!()
         .about("Auto Configuration Server")
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
-        .arg(arg!(--cli "Run ACS cli"))
         .arg(arg!(-d --daemon "Run as a daemon"))
         .get_matches();
-
-    if matches.get_flag("cli") {
-        return cli::main().await;
-    }
 
     let acsdir = match matches.get_one::<std::path::PathBuf>("config") {
         Some(value) => value.clone(),

@@ -195,6 +195,16 @@ impl ManagementSession {
         utils::reply(200, s)
     }
 
+    async fn handle_snlist_request(self: &Self) -> Result<Response<Full<Bytes>>> {
+        let acs = self.acs.read().await;
+        let mut s = String::new();
+
+        for (sn, _) in &acs.cpe_list {
+            s += &format!("{}\n", sn);
+        }
+        utils::reply(200, s)
+    }
+
     async fn handle_stats_request(self: &Self) -> Result<Response<Full<Bytes>>> {
         let s = format!("Stats not implemented");
         utils::reply(200, s)
@@ -233,6 +243,7 @@ impl ManagementSession {
             "spv"       => self.handle_spv_request(&serial_number, &content).await,
             "download"  => self.handle_download_request(&serial_number, &content).await,
             "list"      => self.handle_list_request().await,
+            "snlist"    => self.handle_snlist_request().await,
             "stats"     => self.handle_stats_request().await,
             ""          => self.handle_welcome_request().await,
             _           => self.handle_err404(req).await,
