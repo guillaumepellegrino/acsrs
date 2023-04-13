@@ -43,8 +43,8 @@ impl AcsCli {
 
     fn update_prompt(self: &mut Self) {
         let prompt = match &self.connectedto {
-            Some(connectedto) => format!("{}:{}$ ", connectedto, self.directory),
-            None => String::from("$ "),
+            Some(connectedto) => format!("> {}:{} ", connectedto, self.directory),
+            None => String::from("> "),
         };
         self.cli.setprompt(&prompt);
     }
@@ -61,6 +61,7 @@ impl AcsCli {
 
     async fn disconnect(self: &mut Self) -> Result<()> {
         self.connectedto = None;
+        self.directory = String::new();
         self.update_prompt();
         Ok(())
     }
@@ -99,8 +100,52 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn change_directory(self: &mut Self, _args: &Vec<String>) -> Result<()> {
-        //self.directory = 
+    async fn change_directory(self: &mut Self, args: &Vec<String>) -> Result<()> {
+        if self.connectedto == None {
+            println!("You are not connected to a CPE\nPlease use 'connect [SERIAL_NUMBER]'");
+            return Ok(());
+        }
+
+        let path = match args.get(1) {
+            Some(path) => path,
+            None => {
+                self.directory = String::new();
+                self.update_prompt();
+                return Ok(());
+            },
+        };
+
+        let mut current: Vec<&str> = self.directory.split(".").collect();
+        current.pop();
+
+        match path.as_str() {
+            ""|"/" => {
+                current.clear();
+            },
+            ".." => {
+                current.pop();
+            },
+            _ => {
+                for dir in path.split(".") {
+                    match dir {
+                        "" => {},
+                        _ => {
+                            current.push(dir);
+                        },
+                    }
+                }
+            },
+        }
+
+
+        let mut newdir = String::new();
+        for dir in current {
+            if !dir.is_empty() {
+                newdir += dir;
+                newdir += ".";
+            }
+        }
+        self.directory = newdir;
 
         self.update_prompt();
         Ok(())
@@ -154,6 +199,7 @@ impl AcsCli {
             suggestions.push(String::from("disconnect"));
             suggestions.push(String::from("get"));
             suggestions.push(String::from("set"));
+            suggestions.push(String::from("cd"));
         }
         else {
             suggestions.push(String::from("ls"));
@@ -188,7 +234,7 @@ impl AcsCli {
             let cmd = args[0].as_str();
             suggestions = match cmd {
                 "connect" => self.connect_suggestions().await?,
-                "get"|"set" => self.getset_suggestions().await?,
+                "get"|"set"|"cd" => self.getset_suggestions().await?,
                 _ => Vec::<String>::new(),
             };
         }
