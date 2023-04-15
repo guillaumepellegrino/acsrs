@@ -108,7 +108,7 @@ impl Connreq {
         let context = digest_auth::AuthContext::new(&self.username, &self.password, "/");
         let mut prompt = digest_auth::parse(wwwauth)?;
         let answer = prompt.respond(&context)?.to_header_string();
-        let response = client.get(&self.url).header("Authcrization", answer).send().await?;
+        let response = client.get(&self.url).header("Authorization", answer).send().await?;
 
         match response.status() {
             reqwest::StatusCode::OK => Ok(()),
