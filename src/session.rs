@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 use std::sync::{Arc};
+use std::net::SocketAddr;
 use bytes::Bytes;
 use http_body_util::Full;
 use tokio;
@@ -34,20 +35,24 @@ pub struct TR069Session {
     cpe: Option<Arc<RwLock<CPE>>>,
     observer: Option<mpsc::Sender<soap::Envelope>>,
     refcount: Option<Arc<()>>,
+    srvaddr: SocketAddr,
+    secure: bool,
     sn: String,
-    id: u32,
+    id: String,
     counter: u32,
 }
 
 impl TR069Session {
-    pub fn new(acs: Arc<RwLock<Acs>>) -> Self {
+    pub fn new(acs: Arc<RwLock<Acs>>, srvaddr: SocketAddr, secure: bool) -> Self {
         Self {
             acs: acs,
             cpe: None,
             observer: None,
             refcount: None,
+            srvaddr: srvaddr,
+            secure: secure,
             sn: String::new(),
-            id: 0,
+            id: String::from("0"),
             counter: 0,
         }
     }
@@ -74,11 +79,12 @@ impl TR069Session {
             true => ("InternetGatewayDevice.ManagementServer.ConnectionRequestUsername",
                      "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"),
             false => ("Device.ManagementServer.ConnectionRequestUsername",
-                      "Device.ManagementServer.ConnectionRequestUsername"),
+                      "Device.ManagementServer.ConnectionRequestPassword"),
         };
 
         let mut acs = self.acs.write().await;
-        let cpelock = acs.cpe_list.entry(inform.device_id.serial_number.clone()).or_default();
+        let cpelock = acs.cpe_list.entry(inform.device_id.serial_number.clone()).or_default().clone();
+        drop(acs);
         self.cpe = Some(cpelock.clone());
         let mut cpe = cpelock.write().await;
         if self.refcount == None {
@@ -115,7 +121,23 @@ impl TR069Session {
         }
     }
 
-    async fn cpe_check_transfers(self: &mut Self) ->  Result<Response<Full<Bytes>>> {
+    fn soap_download_set_baseurl(self: &Self, download: &mut soap::Download, req: &mut Request<IncomingBody>) {
+        if let Some(host) = req.headers().get("host") {
+            let host = match host.to_str() {
+                Ok(value) => value,
+                Err(_) => "",
+            };
+            let protocol = match self.secure {
+                true => "https",
+                false => "http",
+            };
+            let baseurl = format!("{}://{}:{}", protocol, host, self.srvaddr.port());
+            download.url.text = download.url.text.replace("${baseurl}", &baseurl);
+            println!("downloadurl={}", download.url.text);
+        }
+    }
+
+    async fn cpe_check_transfers(self: &mut Self, req: &mut Request<IncomingBody>) ->  Result<Response<Full<Bytes>>> {
         let mut transfer;
         let cpelock = match &self.cpe {
             Some(cpelock) => cpelock,
@@ -148,7 +170,11 @@ impl TR069Session {
                 }
             };
         }
-        transfer.msg.header.id.text = self.id;
+        transfer.msg.header.id.text = self.id.clone();
+        if let Some(download) = transfer.msg.body.download.first_mut() {
+            self.soap_download_set_baseurl(download, req);
+        }
+
         self.observer = transfer.observer;
 
         println!("[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
@@ -167,7 +193,7 @@ impl TR069Session {
         if content.is_empty() {
             println!("[SN:{}][SID:{}][{}] Received: Empty content => Check pending transfers for this CPE",
                 self.sn, self.id, self.counter);
-            return self.cpe_check_transfers().await;
+            return self.cpe_check_transfers(req).await;
         }
 
         // Try to parse XML content
@@ -182,7 +208,7 @@ impl TR069Session {
 
         // Process message sent by CPE
         if let Some(inform) = envelope.inform() {
-            self.id = envelope.id();
+            self.id = envelope.id().to_string();
             self.sn = inform.device_id.serial_number.clone();
             println!("[SN:{}][SID:{}][{}] Received: Inform message", self.sn, self.id, self.counter);
 
@@ -209,6 +235,13 @@ impl TR069Session {
         else if let Some(download_response) = envelope.body.download_response.first() {
             println!("[SN:{}][SID:{}][{}] Received: Download Response = {}", self.sn, self.id, self.counter, download_response.status);
         }
+        else if let Some(transfer_complete) = envelope.body.transfer_complete.first() {
+            println!("[SN:{}][SID:{}][{}] Received: TransferComplete = {:?}", self.sn, self.id, self.counter, transfer_complete);
+
+            let mut response = soap::Envelope::new(envelope.id());
+            response.add_transfer_complete_response();
+            return utils::reply_xml(&response);
+        }
         else if let Some(fault) = envelope.body.fault.first() {
             println!("[SN:{}][SID:{}][{}] Received: Fault: {} - {}", self.sn, self.id, self.counter,
                 fault.detail.cwmpfault.faultcode.text,
@@ -229,12 +262,13 @@ impl TR069Session {
         }
 
         // We may ask for a new Transfer
-        return self.cpe_check_transfers().await;
+        return self.cpe_check_transfers(req).await;
     }
 
     async fn handle_download(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
         let download = utils::req_path(&req, 1);
         let path = utils::req_path(&req, 2);
+        println!("Handle Download of {}", path);
         let acs = self.acs.read().await;
         let acsdir = acs.acsdir.clone();
         drop(acs);

@@ -171,7 +171,7 @@ async fn main() -> Result<()> {
             let (stream, _) = cpe_listener.accept().await.unwrap();
             let acs = cpe_acs.clone();
             tokio::task::spawn(async move {
-                let session = Arc::new(RwLock::new(TR069Session::new(acs)));
+                let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, false)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     return async move {
@@ -204,7 +204,7 @@ async fn main() -> Result<()> {
                     },
                 };
 
-                let session = Arc::new(RwLock::new(TR069Session::new(acs)));
+                let session = Arc::new(RwLock::new(TR069Session::new(acs, sec_addr, true)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     return async move {

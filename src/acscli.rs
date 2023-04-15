@@ -108,6 +108,23 @@ impl AcsCli {
         Ok(())
     }
 
+    async fn upgrade(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+        let serial_number = match &self.connectedto {
+            Some(value) => value,
+            None => {return Err(eyre!("Not connected !"));},
+        };
+        let firmware = arg1;
+        let firmware = firmware.ok_or(eyre!("Missing firmware argument"))?;
+        let url = format!("{}/upgrade/{}", self.host, serial_number);
+        let res = self.client.post(&url)
+            .body(format!("file_name={}", firmware))
+            .send().await?;
+        let content = res.text().await?;
+        println!("{}", content);
+
+        Ok(())
+    }
+
     fn abspath(self: &Self, relpath: &str) -> String {
         format!("{}{}", self.directory, relpath)
     }
@@ -208,7 +225,7 @@ impl AcsCli {
         println!(" - cd [path]: Change directory");
         println!(" - get [path] | [path]? : Get object or parameter value");
         println!(" - set [path]<type>=value | [path]<type>=value : Set Parameter value");
-        //println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
+        println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
     }
 
     async fn parse_objpath(self: &mut Self, cmd: &str) -> Result<()> {
@@ -233,6 +250,7 @@ impl AcsCli {
             "set" => {self.set(arg1).await?;},
             "ls" => {self.list(arg1).await?;},
             "cd" => {self.change_directory(arg1).await?;},
+            "upgrade" => {self.upgrade(arg1).await?;},
             "help" => {self.help();},
             "exit" => {self.exit = true},
             "" => {},
@@ -252,6 +270,7 @@ impl AcsCli {
             suggestions.push(String::from("disconnect "));
             suggestions.push(String::from("get "));
             suggestions.push(String::from("set "));
+            suggestions.push(String::from("upgrade "));
         }
         else {
             suggestions.push(String::from("connect "));
@@ -317,7 +336,7 @@ impl AcsCli {
                 Some(_) => {
                     match cmd {
                         "get"|"set"|"cd"|"ls" => self.getset_suggestions(args).await?,
-                        "help"|"exit"|"disconnect"|_ => Vec::<String>::new(),
+                        "help"|"exit"|"disconnect"|"upgrade"|_ => Vec::<String>::new(),
                     }
                 }
                 None => {

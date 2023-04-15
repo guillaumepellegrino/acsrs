@@ -105,14 +105,14 @@ impl ManagementSession {
     }
 
     async fn handle_gpn_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
-        let mut envelope = soap::Envelope::new(0);
+        let mut envelope = soap::Envelope::new("");
         envelope.add_gpn(content, true);
         let result = self.cpe_transfer(&serial_number, envelope).await;
         Self::soap_response(&result).await
     }
 
     async fn handle_gpv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
-        let mut envelope = soap::Envelope::new(0);
+        let mut envelope = soap::Envelope::new("");
         let gpv = envelope.add_gpv();
         for param in content.split(";") {
             gpv.push(&param);
@@ -122,7 +122,7 @@ impl ManagementSession {
     }
 
     async fn handle_spv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
-        let mut envelope = soap::Envelope::new(0);
+        let mut envelope = soap::Envelope::new("");
         let spv = envelope.add_spv(1);
         let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(\w+)").unwrap();
         for param in content.split(";") {
@@ -173,9 +173,8 @@ impl ManagementSession {
         }
         let download: Download = serde_qs::from_str(&content)?;
 
-        let mut envelope = soap::Envelope::new(0);
-        let soap_download = envelope.add_download();
-        soap_download
+        let mut envelope = soap::Envelope::new("");
+        envelope.add_download()
             .set_command_key(&download.command_key)
             .set_file_type(&download.file_type)
             .set_url(&download.url)
@@ -186,6 +185,31 @@ impl ManagementSession {
             .set_delay_seconds(download.delay_seconds)
             .set_success_url(&download.success_url)
             .set_failure_url(&download.failure_url);
+
+        let result = self.cpe_transfer(&serial_number, envelope).await;
+        Self::soap_response(&result).await
+    }
+
+
+    async fn handle_upgrade_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+        #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+        struct Upgrade {
+            #[serde(default)]
+            file_name: String,
+        }
+        let upgrade: Upgrade = serde_qs::from_str(&content)?;
+
+        let acs = self.acs.read().await;
+        let url = format!("${{baseurl}}/download/{}", upgrade.file_name);
+        let mut envelope = soap::Envelope::new("");
+        envelope.add_download()
+            .set_command_key("upgrade")
+            .set_file_type("1 Firmware Upgrade Image")
+            .set_url(&url)
+            .set_username(&acs.config.username)
+            .set_password(&acs.config.password)
+            .set_target_file_name(&upgrade.file_name);
+        drop(acs);
 
         let result = self.cpe_transfer(&serial_number, envelope).await;
         Self::soap_response(&result).await
@@ -250,6 +274,7 @@ impl ManagementSession {
             "gpv"       => self.handle_gpv_request(&serial_number, &content).await,
             "spv"       => self.handle_spv_request(&serial_number, &content).await,
             "download"  => self.handle_download_request(&serial_number, &content).await,
+            "upgrade"   => self.handle_upgrade_request(&serial_number, &content).await,
             "list"      => self.handle_list_request().await,
             "snlist"    => self.handle_snlist_request().await,
             "stats"     => self.handle_stats_request().await,

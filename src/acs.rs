@@ -43,6 +43,7 @@ pub struct Transfer {
 pub struct CPE {
     pub device_id: soap::DeviceId,
     pub connreq: Connreq,
+    pub baseurl: String,
 
     /** Number of TR069Session opened for this CPE + 1 */
     tr069_session_refcount: Arc<()>,
@@ -71,7 +72,7 @@ pub struct Acs {
 impl Transfer {
     pub fn new() -> Self {
         Self {
-            msg: soap::Envelope::new(1),
+            msg: soap::Envelope::new("1"),
             observer: None,
         }
     }
@@ -100,13 +101,14 @@ impl Connreq {
         // Step 1:  Get the auth header
         let res = client.get(&self.url).send().await?;
         let headers = res.headers();
-        let wwwauth = headers["www-authenticate"].to_str()?;
+        let wwwauth = headers.get("www-authenticate")
+            .ok_or(eyre!("connreq reply without auth header"))?.to_str()?;
 
         // Step 2:  Given the auth header, sign the digest for the real req.
         let context = digest_auth::AuthContext::new(&self.username, &self.password, "/");
         let mut prompt = digest_auth::parse(wwwauth)?;
         let answer = prompt.respond(&context)?.to_header_string();
-        let response = client.get(&self.url).header("Authorization", answer).send().await?;
+        let response = client.get(&self.url).header("Authcrization", answer).send().await?;
 
         match response.status() {
             reqwest::StatusCode::OK => Ok(()),
@@ -121,6 +123,7 @@ impl Default for CPE {
         Self {
             device_id: soap::DeviceId::default(),
             connreq: Connreq::default(),
+            baseurl: String::new(),
             tr069_session_refcount: Arc::new(()),
             cpe_controllers_refcount: Arc::new(()),
             transfers_tx: tx,

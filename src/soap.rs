@@ -21,7 +21,7 @@ use serde::Serialize;
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct ID {
     #[serde(rename = "$text")]
-    pub text: u32,
+    pub text: String,
 
     #[serde(rename = "@soapenv:mustUnderstand")]
     #[serde(default)]
@@ -407,6 +407,10 @@ pub struct TransferComplete {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct TransferCompleteResponse {}
+
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Reboot {
     #[serde(rename = "CommandKey")]
     pub command_key: Value,
@@ -474,6 +478,7 @@ pub enum Kind {
     Reboot,
     RebootResponse,
     TransferComplete,
+    TransferCompleteResponse,
     Fault,
     Unknown,
 }
@@ -525,6 +530,10 @@ pub struct Body {
     #[serde(default)]
     pub transfer_complete: Vec<TransferComplete>,
 
+    #[serde(rename(serialize = "cwmp:TransferCompleteResponse", deserialize = "TransferCompleteResponse"))]
+    #[serde(default)]
+    pub transfer_complete_response: Vec<TransferCompleteResponse>,
+
     #[serde(rename(serialize = "cwmp:Reboot", deserialize = "Reboot"))]
     #[serde(default)]
     pub reboot: Vec<Reboot>,
@@ -569,9 +578,9 @@ pub struct Envelope {
 }
 
 impl Envelope {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: &str) -> Self {
         let mut root = Self::default();
-        root.header.id.text = id;
+        root.header.id.text = String::from(id);
         root.header.id.must_understand = 1;
         root.xmlns_soap = String::from("http://schemas.xmlsoap.org/soap/encoding/");
         root.xmlns_xsd = String::from("http://www.w3.org/2001/XMLSchema");
@@ -615,6 +624,9 @@ impl Envelope {
         else if self.body.transfer_complete.first().is_some() {
             Kind::TransferComplete
         }
+        else if self.body.transfer_complete_response.first().is_some() {
+            Kind::TransferCompleteResponse
+        }
         else if self.body.reboot.first().is_some() {
             Kind::Reboot
         }
@@ -632,6 +644,11 @@ impl Envelope {
     pub fn add_inform_response(self: &mut Self) -> &mut InformResponse {
         self.body.inform_response.push(InformResponse::default());
         self.body.inform_response.first_mut().unwrap()
+    }
+
+    pub fn add_transfer_complete_response(self: &mut Self) -> &mut TransferCompleteResponse {
+        self.body.transfer_complete_response.push(TransferCompleteResponse::default());
+        self.body.transfer_complete_response.first_mut().unwrap()
     }
 
     pub fn add_gpn(self: &mut Self, path: &str, next_level: bool) -> &mut GetParameterNames {
@@ -668,8 +685,8 @@ impl Envelope {
         self.body.reboot.first_mut().unwrap()
     }
 
-    pub fn id(self: &Self) -> u32 {
-        self.header.id.text
+    pub fn id(self: &Self) -> &str {
+        &self.header.id.text
     }
 
     pub fn inform(self: &Self) -> Option<&Inform> {
@@ -704,6 +721,9 @@ impl std::fmt::Display for Envelope {
         else if let Some(response) = self.body.spv_response.first() {
             return write!(f, "Status: {}", response.status);
         }
+        else if let Some(response) = self.body.download_response.first() {
+            return write!(f, "Status: {}", response.status);
+        }
         else {
             return write!(f, "Empty response");
         }
@@ -718,7 +738,7 @@ fn test_bootstrap() {
     let bootstrap: Envelope = quick_xml::de::from_str(&xml).unwrap();
     println!("bootstrap = {:?}", bootstrap);
 
-    assert_eq!(bootstrap.header.id.text, 515);
+    assert_eq!(bootstrap.id(), "515");
     let inform = bootstrap.inform().unwrap();
     assert_eq!(inform.device_id.manufacturer, "$MANUFACTURER");
     assert_eq!(inform.device_id.oui, "CAFE12");
@@ -740,8 +760,23 @@ fn test_bootstrap() {
 }
 
 #[test]
+fn test_transfer_complete() {
+    let xml: String = std::fs::read_to_string("test/transfer_complete.xml").unwrap()
+        .parse().unwrap();
+
+    let transfer_complete: Envelope = quick_xml::de::from_str(&xml).unwrap();
+    println!("transfer_complete = {:?}", transfer_complete);
+    assert_eq!(transfer_complete.id(), "test1234");
+
+    let body = &transfer_complete.body.transfer_complete[0];
+    assert_eq!(body.command_key, "upgrade");
+    assert_eq!(body.fault_struct.faultcode.text, "9015");
+    assert_eq!(body.fault_struct.faultstring.text, "Server not found");
+}
+
+#[test]
 fn test_inform_response() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     envelope.add_inform_response();
     let value = quick_xml::se::to_string(&envelope).unwrap();
     let expected: String = std::fs::read_to_string("test/inform_response.xml").unwrap().parse().unwrap();
@@ -750,7 +785,7 @@ fn test_inform_response() {
 
 #[test]
 fn test_gpn() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     envelope.add_gpn("Device.", false);
     let value = quick_xml::se::to_string(&envelope).unwrap();
     let expected: String = std::fs::read_to_string("test/gpn.xml").unwrap().parse().unwrap();
@@ -759,7 +794,7 @@ fn test_gpn() {
 
 #[test]
 fn test_gpv() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     let gpv = envelope.add_gpv();
     gpv.push("Device.");
 
@@ -770,7 +805,7 @@ fn test_gpv() {
 
 #[test]
 fn test_spv() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     let spv = envelope.add_spv(2302518885);
     spv.push(ParameterValue::new("Device.ManagementServer.Enable", "xsd:boolean", "1"));
 
@@ -781,7 +816,7 @@ fn test_spv() {
 
 #[test]
 fn test_download() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     let download = envelope.add_download();
     download
         .set_command_key("FirmwareUpgrade")
@@ -802,7 +837,7 @@ fn test_download() {
 
 #[test]
 fn test_reboot() {
-    let mut envelope = Envelope::new(2);
+    let mut envelope = Envelope::new("2");
     envelope.add_reboot("123456");
 
     let value = quick_xml::se::to_string(&envelope).unwrap();
