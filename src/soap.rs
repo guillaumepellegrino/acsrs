@@ -155,6 +155,43 @@ impl Default for InformResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct GetParameterNames {
+    #[serde(rename = "ParameterPath")]
+    #[serde(default)]
+    pub parameter_path: String,
+
+    #[serde(rename = "NextLevel")]
+    #[serde(default)]
+    pub next_level: u8,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct ParameterInfoStruct {
+    #[serde(rename = "Name")]
+    #[serde(default)]
+    pub name: String,
+
+    #[serde(rename = "Writable")]
+    #[serde(default)]
+    pub writable: u8,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct ParameterListInfo {
+    #[serde(rename = "ParameterInfoStruct")]
+    #[serde(default)]
+    parameter_info: Vec<ParameterInfoStruct>,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct GetParameterNamesResponse {
+    #[serde(rename = "ParameterList")]
+    #[serde(default)]
+    parameter_list: ParameterListInfo,
+}
+
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterNames {
     #[serde(rename = "@soap:arrayType")]
     #[serde(default)]
@@ -426,6 +463,8 @@ pub struct SoapFault {
 pub enum Kind {
     Inform,
     InformResponse,
+    GetParameterNames,
+    GetParameterNamesResponse,
     GetParameterValues,
     GetParameterValuesResponse,
     SetParameterValues,
@@ -448,6 +487,15 @@ pub struct Body {
     #[serde(rename(serialize = "cwmp:InformResponse", deserialize = "InformResponse"))]
     #[serde(default)]
     pub inform_response: Vec<InformResponse>,
+
+
+    #[serde(rename(serialize = "cwmp:GetParameterNames", deserialize = "GetParameterNames"))]
+    #[serde(default)]
+    pub gpn: Vec<GetParameterNames>,
+
+    #[serde(rename(serialize = "cwmp:GetParameterNamesResponse", deserialize = "GetParameterNamesResponse"))]
+    #[serde(default)]
+    pub gpn_response: Vec<GetParameterNamesResponse>,
 
     #[serde(rename(serialize = "cwmp:GetParameterValues", deserialize = "GetParameterValues"))]
     #[serde(default)]
@@ -540,6 +588,12 @@ impl Envelope {
         else if self.body.inform_response.first().is_some() {
             Kind::InformResponse
         }
+        else if self.body.gpn.first().is_some() {
+            Kind::GetParameterNames
+        }
+        else if self.body.gpn_response.first().is_some() {
+            Kind::GetParameterNamesResponse
+        }
         else if self.body.gpv.first().is_some() {
             Kind::GetParameterValues
         }
@@ -578,6 +632,14 @@ impl Envelope {
     pub fn add_inform_response(self: &mut Self) -> &mut InformResponse {
         self.body.inform_response.push(InformResponse::default());
         self.body.inform_response.first_mut().unwrap()
+    }
+
+    pub fn add_gpn(self: &mut Self, path: &str, next_level: bool) -> &mut GetParameterNames {
+        self.body.gpn.push(GetParameterNames {
+            parameter_path: String::from(path),
+            next_level: next_level as u8,
+        });
+        self.body.gpn.first_mut().unwrap()
     }
 
     pub fn add_gpv(self: &mut Self) -> &mut GetParameterValues {
@@ -621,6 +683,17 @@ impl std::fmt::Display for Envelope {
             return write!(f, "{} - {}",
                 fault.detail.cwmpfault.faultcode.text,
                 fault.detail.cwmpfault.faultstring.text);
+        }
+        else if let Some(response) = self.body.gpn_response.first() {
+            for pn in &response.parameter_list.parameter_info {
+                if pn.writable == 1 {
+                    write!(f, "<r-> {}\n", pn.name)?;
+                }
+                else {
+                    write!(f, "<rw> {}\n", pn.name)?;
+                }
+            }
+            return write!(f, "");
         }
         else if let Some(response) = self.body.gpv_response.first() {
             for pv in &response.parameter_list.parameter_values {
@@ -672,6 +745,15 @@ fn test_inform_response() {
     envelope.add_inform_response();
     let value = quick_xml::se::to_string(&envelope).unwrap();
     let expected: String = std::fs::read_to_string("test/inform_response.xml").unwrap().parse().unwrap();
+    assert_eq!(value, expected.trim());
+}
+
+#[test]
+fn test_gpn() {
+    let mut envelope = Envelope::new(2);
+    envelope.add_gpn("Device.", false);
+    let value = quick_xml::se::to_string(&envelope).unwrap();
+    let expected: String = std::fs::read_to_string("test/gpn.xml").unwrap().parse().unwrap();
     assert_eq!(value, expected.trim());
 }
 

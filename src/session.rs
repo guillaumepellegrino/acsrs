@@ -197,6 +197,9 @@ impl TR069Session {
             response.add_inform_response();
             return utils::reply_xml(&response);
         }
+        else if let Some(_gpn_response) = envelope.body.gpn_response.first() {
+            println!("[SN:{}][SID:{}][{}] Received: GPN Response", self.sn, self.id, self.counter);
+        }
         else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
             println!("[SN:{}][SID:{}][{}] Received: GPV Response", self.sn, self.id, self.counter);
         }

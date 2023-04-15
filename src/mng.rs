@@ -104,6 +104,13 @@ impl ManagementSession {
         }
     }
 
+    async fn handle_gpn_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+        let mut envelope = soap::Envelope::new(0);
+        envelope.add_gpn(content, true);
+        let result = self.cpe_transfer(&serial_number, envelope).await;
+        Self::soap_response(&result).await
+    }
+
     async fn handle_gpv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new(0);
         let gpv = envelope.add_gpv();
@@ -239,6 +246,7 @@ impl ManagementSession {
         let serial_number = utils::req_path(&req, 2);
         let content = utils::content(req).await?;
         let reply = match command.as_str() {
+            "gpn"       => self.handle_gpn_request(&serial_number, &content).await,
             "gpv"       => self.handle_gpv_request(&serial_number, &content).await,
             "spv"       => self.handle_spv_request(&serial_number, &content).await,
             "download"  => self.handle_download_request(&serial_number, &content).await,
