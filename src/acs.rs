@@ -185,7 +185,7 @@ impl Acs {
             unsecure_address: String::from("0.0.0.0:8080"),
             identity_password: String::from("ACSRS"),
             secure_address: String::from("0.0.0.0:8443"),
-            management_address: String::from("0.0.0.0:8000"),
+            management_address: String::from("127.0.0.1:8000"),
         };
         acs.basicauth = Self::basicauth(&acs.config.username, &acs.config.password);
         acs.acsdir = acsdir.to_path_buf();
