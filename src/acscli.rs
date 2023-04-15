@@ -43,7 +43,12 @@ impl AcsCli {
 
     fn update_prompt(self: &mut Self) {
         let prompt = match &self.connectedto {
-            Some(connectedto) => format!("> {}:{} ", connectedto, self.directory),
+            Some(connectedto) => {
+                match self.directory.as_str() {
+                    "" => format!("{}> ", connectedto),
+                    _  => format!("{}:{}> ", connectedto, self.directory),
+                }
+            }
             None => String::from("> "),
         };
         self.cli.setprompt(&prompt);
@@ -120,8 +125,7 @@ impl AcsCli {
 
     async fn change_directory(self: &mut Self, args: &Vec<String>) -> Result<()> {
         if self.connectedto == None {
-            println!("You are not connected to a CPE\nPlease use 'connect [SERIAL_NUMBER]'");
-            return Ok(());
+            return self.connect(args).await;
         }
 
         let path = match args.get(1) {
@@ -213,7 +217,7 @@ impl AcsCli {
         match cmd {
             "connect" => {self.connect(args).await?;},
             "disconnect" => {self.disconnect().await?;},
-            "get" => {self.get("gpv", args).await?;},
+            "get"|"?" => {self.get("gpv", args).await?;},
             "set" => {self.set(args).await?;},
             "ls" => {self.list(args).await?;},
             "cd" => {self.change_directory(args).await?;},
@@ -230,14 +234,14 @@ impl AcsCli {
         let mut suggestions = Vec::<String>::new();
         suggestions.push(String::from("help "));
         suggestions.push(String::from("exit "));
+        suggestions.push(String::from("ls "));
+        suggestions.push(String::from("cd "));
         if self.connectedto != None {
             suggestions.push(String::from("disconnect "));
             suggestions.push(String::from("get "));
             suggestions.push(String::from("set "));
-            suggestions.push(String::from("cd "));
         }
         else {
-            suggestions.push(String::from("ls "));
             suggestions.push(String::from("connect "));
         }
         suggestions
@@ -269,7 +273,10 @@ impl AcsCli {
             .body(objpath)
             .send().await?;
         let content = res.text().await?;
-
+        let content = match content.split_once("\n") {
+            Some((_, content)) => content,
+            None => {return Ok(suggestions);},
+        };
         for line in content.lines() {
             let path = match line.get(5..) {
                 Some(path) => path,
@@ -292,10 +299,19 @@ impl AcsCli {
         }
         else {
             let cmd = args[0].as_str();
-            suggestions = match cmd {
-                "connect" => self.connect_suggestions().await?,
-                "get"|"set"|"cd" => self.getset_suggestions(args).await?,
-                _ => Vec::<String>::new(),
+            suggestions = match self.connectedto {
+                Some(_) => {
+                    match cmd {
+                        "get"|"set"|"cd" => self.getset_suggestions(args).await?,
+                        _ => Vec::<String>::new(),
+                    }
+                }
+                None => {
+                    match cmd {
+                        "cd"|"connect" => self.connect_suggestions().await?,
+                        _ => Vec::<String>::new(),
+                    }
+                }
             };
         }
 
