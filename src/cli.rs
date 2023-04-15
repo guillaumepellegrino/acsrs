@@ -337,10 +337,8 @@ impl Cli {
         if words.len() == 1 {
             // Complete current line
             self.cmd += complete;
-            self.cmd += " ";
-            self.cursor += complete.len() + 1;
-            eprint!("{} ", complete);
-            return Ok(());
+            self.cursor += complete.len();
+            eprint!("{}", complete);
         }
         else {
             // Display all possibilites
