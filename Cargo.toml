@@ -22,6 +22,7 @@ path = "src/acscli.rs"
 hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 tokio-native-tls = "0.3.1"
+h2 = "0.3.17"
 native-tls = "0.2.11"
 reqwest = "0.11.15"
 serde = { version = "1.0.158", features = ["derive"] }
