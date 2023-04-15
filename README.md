@@ -7,14 +7,14 @@ Supported features are:
 - Zero-conf server: The server tries to configure itself securely at first start.
 - HTTP, HTTPs and authentication support.
 - ACS configuration and connected CPEs are persistent.
-- GetParameterValues and SetParameterValues.
+- CLI with advanced auto-completion to interact with CPEs.
+- GetParameterValues, SetParameterValues, Upgrade.
 
 Some limitations are:
 - There are no notifications mechanism implemented.
 - It may not be fully compliant with TR-069 standard.
 - syslog support not yet implemented.
 - Logging is quite messy.
-- No cli or web interfaces implemented.
 
 # Install ACSRS
 The application can be installed directly from cargo
@@ -36,7 +36,27 @@ It will auto-configure itself by generating new user, password, certificate and 
 Note: The ACS Public Certificate Common Name (CN) is derived from your public IP Address by default.
 It can be overrided by editing $HOME/.acsrs/config.toml and setting your hostname there. You can also disable there the auto-generation certificate mechanism if you wish to install your own certificates.
 
-# Usage
+# Usage with acscli
+acscli is an interactive UNIX cli for ACSRS
+
+## Global commands:
+ - help: Display this help
+ - exit: Exit this application
+
+## Availables command when disconnected:
+ - ls: List connected CPEs to this ACS
+ - cd|connect [SN] : Connect to CPE specified by this Serial Number
+
+## Availables command when connected to a CPE:
+ - disconnect :  Disconnect from the current CPE
+ - ls [path]: List Parameters under current object
+ - cd [path]: Change directory
+ - get [path] | [path]? : Get object or parameter value
+ - set [path]<type>=value | [path]<type>=value : Set Parameter value
+ - upgrade [filename] : Upgrade CPE to provided firmware
+
+
+# Usage with curl
 ## List managed CPEs by this ACS
 ```
 curl 127.0.0.1:8000/list
