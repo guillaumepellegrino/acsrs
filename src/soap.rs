@@ -214,6 +214,11 @@ impl GetParameterValues {
         self.parameter_names.array_type = format!("xsd:string[{}]", self.parameter_names.string.len());
         self
     }
+
+    pub fn len(self: &Self) -> usize {
+        self.parameter_names.string.len()
+    }
+
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
@@ -238,6 +243,11 @@ impl SetParameterValues {
         let len = self.parameter_list.parameter_values.len();
         self.parameter_list.array_type = format!("cwmp:ParameterValueStruct[{}]", len);
         self
+    }
+
+    #[allow(dead_code)]
+    pub fn len(self: &Self) -> usize {
+        self.parameter_list.parameter_values.len()
     }
 }
 

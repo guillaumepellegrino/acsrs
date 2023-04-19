@@ -122,19 +122,53 @@ impl ManagementSession {
     }
 
     async fn handle_spv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
-        let mut envelope = soap::Envelope::new("");
-        let spv = envelope.add_spv(1);
-        let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(.+)")?;
+        let mut gpv_envelope = soap::Envelope::new("");
+        let mut spv_envelope = soap::Envelope::new("");
+        let gpv = gpv_envelope.add_gpv();
+        let spv = spv_envelope.add_spv(1);
+        let regex_key_type_value = Regex::new(r"(.+)<(.+)>=(.+)")?;
+        let regex_key_value = Regex::new(r"(.+)=(.+)")?;
         for param in content.split(";") {
-            let captures = re.captures(param).ok_or(eyre!("invalid expression"))?;
-            let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
-            let base_type = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
-            let xsd_type = format!("xsd:{}", base_type);
-            let value = captures.get(3).ok_or(eyre!("invalid expression"))?.as_str();
-            //println!("SPV({},{},{})", key, xsd_type, value);
-            spv.push(soap::ParameterValue::new(key, &xsd_type, value));
+            match regex_key_type_value.captures(param) {
+                Some(captures) => {
+                    let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
+                    let base_type = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
+                    let xsd_type = format!("xsd:{}", base_type);
+                    let value = captures.get(3).ok_or(eyre!("invalid expression"))?.as_str();
+                    //println!("SPV({},{},{})", key, xsd_type, value);
+                    spv.push(soap::ParameterValue::new(key, &xsd_type, value));
+                },
+                None => {
+                    // let's query the parameter type with a GPV
+                    let captures = regex_key_value.captures(param)
+                        .ok_or(eyre!("invalid expression"))?;
+
+                    let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
+                    let value = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
+                    gpv.push(key);
+                    spv.push(soap::ParameterValue::new(key, "", value));
+                },
+            };
         }
-        let result = self.cpe_transfer(&serial_number, envelope).await;
+
+        // Send a GPV to deduct the parameter types
+        if gpv.len() > 0 {
+            let result = self.cpe_transfer(&serial_number, gpv_envelope).await?;
+            let response = match result.body.gpv_response.first() {
+                Some(response) => response,
+                None => {return Self::soap_response(&Ok(result)).await;},
+            };
+            for gpv_pv in &response.parameter_list.parameter_values {
+                for spv_pv in &mut spv.parameter_list.parameter_values {
+                    if gpv_pv.name != spv_pv.name {
+                        continue;
+                    }
+                    spv_pv.value.xsi_type = gpv_pv.value.xsi_type.clone();
+                }
+            }
+        }
+
+        let result = self.cpe_transfer(&serial_number, spv_envelope).await;
         Self::soap_response(&result).await
     }
 
