@@ -96,11 +96,11 @@ impl AcsCli {
             Some(value) => value,
             None => {return Err(eyre!("Not connected !"));},
         };
-        let path = arg1;
-        let path = path.ok_or(eyre!("Missing path argument"))?;
+        let relpath = arg1.ok_or(eyre!("Missing path argument"))?;
+        let abspath = self.abspath(relpath);
         let url = format!("{}/spv/{}", self.host, serial_number);
         let res = self.client.post(&url)
-            .body(String::from(path))
+            .body(String::from(abspath))
             .send().await?;
         let content = res.text().await?;
         println!("{}", content);
