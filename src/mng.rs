@@ -124,13 +124,13 @@ impl ManagementSession {
     async fn handle_spv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new("");
         let spv = envelope.add_spv(1);
-        let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(\w+)").unwrap();
+        let re = Regex::new(r"(\w|.+)\s*<(\w+)>\s*=\s*(.+)")?;
         for param in content.split(";") {
-            let captures = re.captures(param).unwrap();
-            let key = captures.get(1).unwrap().as_str();
-            let base_type = captures.get(2).unwrap().as_str();
+            let captures = re.captures(param).ok_or(eyre!("invalid expression"))?;
+            let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
+            let base_type = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
             let xsd_type = format!("xsd:{}", base_type);
-            let value = captures.get(3).unwrap().as_str();
+            let value = captures.get(3).ok_or(eyre!("invalid expression"))?.as_str();
             //println!("SPV({},{},{})", key, xsd_type, value);
             spv.push(soap::ParameterValue::new(key, &xsd_type, value));
         }
