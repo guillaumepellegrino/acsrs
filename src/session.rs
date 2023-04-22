@@ -105,7 +105,7 @@ impl TR069Session {
             self.refcount = Some(cpe.get_tr069_session_refcount());
         }
         cpe.device_id = inform.device_id.clone();
-        if cpe.connreq.url != connreq_url {
+        if cpe.connreq.url != connreq_url || inform.event.contains("0 BOOTSTRAP") {
             println!("connreq.url is not configred: Configure ConnectionRequest");
 
             println!(

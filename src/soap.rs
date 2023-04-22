@@ -65,6 +65,17 @@ pub struct Event {
     pub event_struct: Vec<EventStruct>,
 }
 
+impl Event {
+    pub fn contains(self: &Self, event_code: &str) -> bool {
+        for event in &self.event_struct {
+            if event.event_code == event_code {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Value {
     #[serde(rename(serialize = "@xsi:type", deserialize = "@type"))]
