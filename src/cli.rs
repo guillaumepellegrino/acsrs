@@ -16,9 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use eyre::{Result};
-use tokio::io::{Stdin, stdin, BufReader, AsyncReadExt};
+use eyre::Result;
 use termios::*;
+use tokio::io::{stdin, AsyncReadExt, BufReader, Stdin};
 
 pub enum Action {
     Command(Vec<String>),
@@ -49,7 +49,7 @@ impl std::fmt::Display for EscSeq {
             Self::HorizontalAbs(value) => write!(f, "\x1B[{}G", value),
             Self::EraseInDisplay(value) => write!(f, "\x1B[{}J", value),
             Self::EraseInLineFromCursorToEnd => write!(f, "\x1B[0K"),
-            Self::EraseInLineFromCursorToBegining=> write!(f, "\x1B[1K"),
+            Self::EraseInLineFromCursorToBegining => write!(f, "\x1B[1K"),
             Self::EraseInLineAll => write!(f, "\x1B[2K"),
         }
     }
@@ -99,15 +99,26 @@ impl Cli {
                 continue;
             }
             match c {
-                '\\' => { is_escaped = true; },
-                '"' => { is_string = !is_string; },
+                '\\' => {
+                    is_escaped = true;
+                }
+                '"' => {
+                    is_string = !is_string;
+                }
                 ' ' => {
-                        match is_string {
-                            true => { arg.push(c); },
-                            false => { args.push(arg.clone()); arg.clear(); },
-                        };
-                    },
-                _ => { arg.push(c); }
+                    match is_string {
+                        true => {
+                            arg.push(c);
+                        }
+                        false => {
+                            args.push(arg.clone());
+                            arg.clear();
+                        }
+                    };
+                }
+                _ => {
+                    arg.push(c);
+                }
             }
         }
         args.push(arg);
@@ -130,11 +141,16 @@ impl Cli {
     fn history_restore(self: &mut Self) -> Result<()> {
         let word = match self.history_idx {
             Some(idx) => &self.history[idx],
-            None => {return Ok(());}
+            None => {
+                return Ok(());
+            }
         };
 
         self.cmd = word.clone();
-        self.cursor = match self.cmd.len() { 0 => 0, len => len};
+        self.cursor = match self.cmd.len() {
+            0 => 0,
+            len => len,
+        };
         self.clear_line()?;
         eprint!("{}{}", self.prompt, self.cmd);
 
@@ -159,9 +175,12 @@ impl Cli {
     async fn history_next(self: &mut Self) -> Result<()> {
         self.history_idx = match self.history_idx {
             Some(idx) => {
-                if (idx + 1) < self.history.len() { Some(idx + 1) }
-                else { None }
-            },
+                if (idx + 1) < self.history.len() {
+                    Some(idx + 1)
+                } else {
+                    None
+                }
+            }
             None => None,
         };
 
@@ -197,24 +216,29 @@ impl Cli {
         }
         let c = self.reader.read_u8().await?;
         match c {
-            0x33 => { // SUPPR
+            0x33 => {
+                // SUPPR
                 self.suppr().await?;
-            },
-            0x41 => { // UP
+            }
+            0x41 => {
+                // UP
                 self.history_prev().await?;
-            },
-            0x42 => { // LOW
+            }
+            0x42 => {
+                // LOW
                 self.history_next().await?;
-            },
-            0x43 => { // RIGHT
+            }
+            0x43 => {
+                // RIGHT
                 self.cursor_right().await?;
-            },
-            0x44 => { // LEFT
+            }
+            0x44 => {
+                // LEFT
                 self.cursor_left().await?;
-            },
+            }
             _ => {
                 eprintln!("Unhandled ANSI Escape Sequence: {}", c);
-            },
+            }
         }
         Ok(())
     }
@@ -223,8 +247,7 @@ impl Cli {
         if self.cursor < self.cmd.len() {
             let right = &self.cmd[self.cursor..];
             eprint!("{}{}{}", c, right, EscSeq::Left(right.len()));
-        }
-        else {
+        } else {
             eprint!("{}", c);
         }
 
@@ -240,7 +263,7 @@ impl Cli {
 
         let right = &self.cmd[self.cursor..];
         self.cursor -= 1;
-        eprint!("\x08{} {}", right, EscSeq::Left(right.len()+1));
+        eprint!("\x08{} {}", right, EscSeq::Left(right.len() + 1));
         self.cmd.remove(self.cursor);
 
         Ok(())
@@ -252,8 +275,8 @@ impl Cli {
             eprintln!("Unexpect character {}", c);
             return Ok(());
         }
-        if self.cursor+1 < self.cmd.len() {
-            let right = &self.cmd[self.cursor+1..];
+        if self.cursor + 1 < self.cmd.len() {
+            let right = &self.cmd[self.cursor + 1..];
             eprint!("{} {}", right, EscSeq::Left(right.len() + 1));
             self.cmd.remove(self.cursor);
         }
@@ -278,22 +301,24 @@ impl Cli {
             let c = self.reader.read_u8().await?;
 
             match c {
-                0x01|0x02 => {
+                0x01 | 0x02 => {
                     self.cursor_reset().await?;
-                },
-                0x1B => { // ESC (escap)
+                }
+                0x1B => {
+                    // ESC (escap)
                     self.escape().await?;
-                },
-                0x7F => { // DEL
+                }
+                0x7F => {
+                    // DEL
                     self.backspace().await?;
-                },
+                }
                 b'\n' => {
                     self.do_reset = true;
                     return Ok(Action::Command(self.eol().await?));
-                },
+                }
                 b'\t' => {
                     return Ok(Action::AutoComplete(self.cmd2args()));
-                },
+                }
                 _ => {
                     self.addchar(c as char).await?;
                 }
@@ -333,14 +358,12 @@ impl Cli {
         let lastarg = args.last().unwrap();
         let complete = &common[lastarg.len()..];
 
-
         if words.len() == 1 {
             // Complete current line
             self.cmd += complete;
             self.cursor += complete.len();
             eprint!("{}", complete);
-        }
-        else {
+        } else {
             // Display all possibilites
             eprintln!("");
             for word in words {
@@ -351,7 +374,6 @@ impl Cli {
             self.cursor += complete.len();
             eprint!("\n{}{}", self.prompt, self.cmd);
         }
-
 
         Ok(())
     }
@@ -378,17 +400,15 @@ fn common_chars<'a>(lstr: &'a str, rstr: &'_ str) -> &'a str {
 
     loop {
         match lindices.next() {
-            Some((_, lchar)) => {
-                match rindices.next() {
-                    Some((_, rchar)) => {
-                        if lchar != rchar {
-                            break;
-                        }
-                        common += 1;
-                    },
-                    None => {
+            Some((_, lchar)) => match rindices.next() {
+                Some((_, rchar)) => {
+                    if lchar != rchar {
                         break;
                     }
+                    common += 1;
+                }
+                None => {
+                    break;
                 }
             },
             None => {
@@ -399,4 +419,3 @@ fn common_chars<'a>(lstr: &'a str, rstr: &'_ str) -> &'a str {
 
     &lstr[0..common]
 }
-

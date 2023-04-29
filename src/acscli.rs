@@ -18,7 +18,7 @@
 
 use eyre::{eyre, Result};
 mod cli;
-use crate::cli::{Cli, Action};
+use crate::cli::{Action, Cli};
 
 struct AcsCli {
     cli: Cli,
@@ -43,12 +43,10 @@ impl AcsCli {
 
     fn update_prompt(self: &mut Self) {
         let prompt = match &self.connectedto {
-            Some(connectedto) => {
-                match self.directory.as_str() {
-                    "" => format!("{}> ", connectedto),
-                    _  => format!("{}:{}> ", connectedto, self.directory),
-                }
-            }
+            Some(connectedto) => match self.directory.as_str() {
+                "" => format!("{}> ", connectedto),
+                _ => format!("{}:{}> ", connectedto, self.directory),
+            },
             None => String::from("> "),
         };
         self.cli.setprompt(&prompt);
@@ -74,7 +72,9 @@ impl AcsCli {
     async fn get(self: &mut Self, cmd: &str, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
-            None => {return Err(eyre!("Not connected !"));},
+            None => {
+                return Err(eyre!("Not connected !"));
+            }
         };
         let relpath = match arg1 {
             Some(relpath) => relpath.as_str(),
@@ -82,9 +82,7 @@ impl AcsCli {
         };
         let abspath = self.abspath(relpath);
         let url = format!("{}/{}/{}", self.host, cmd, serial_number);
-        let res = self.client.post(&url)
-            .body(abspath)
-            .send().await?;
+        let res = self.client.post(&url).body(abspath).send().await?;
         let content = res.text().await?;
         println!("{}", content);
 
@@ -94,14 +92,19 @@ impl AcsCli {
     async fn set(self: &mut Self, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
-            None => {return Err(eyre!("Not connected !"));},
+            None => {
+                return Err(eyre!("Not connected !"));
+            }
         };
         let relpath = arg1.ok_or(eyre!("Missing path argument"))?;
         let abspath = self.abspath(relpath);
         let url = format!("{}/spv/{}", self.host, serial_number);
-        let res = self.client.post(&url)
+        let res = self
+            .client
+            .post(&url)
             .body(String::from(abspath))
-            .send().await?;
+            .send()
+            .await?;
         let content = res.text().await?;
         println!("{}", content);
 
@@ -111,14 +114,19 @@ impl AcsCli {
     async fn upgrade(self: &mut Self, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
-            None => {return Err(eyre!("Not connected !"));},
+            None => {
+                return Err(eyre!("Not connected !"));
+            }
         };
         let firmware = arg1;
         let firmware = firmware.ok_or(eyre!("Missing firmware argument"))?;
         let url = format!("{}/upgrade/{}", self.host, serial_number);
-        let res = self.client.post(&url)
+        let res = self
+            .client
+            .post(&url)
             .body(format!("file_name={}", firmware))
-            .send().await?;
+            .send()
+            .await?;
         let content = res.text().await?;
         println!("{}", content);
 
@@ -151,31 +159,30 @@ impl AcsCli {
                 self.directory = String::new();
                 self.update_prompt();
                 return Ok(());
-            },
+            }
         };
 
         let mut current: Vec<&str> = self.directory.split(".").collect();
         current.pop();
 
         match path.as_str() {
-            ""|"/" => {
+            "" | "/" => {
                 current.clear();
-            },
+            }
             ".." => {
                 current.pop();
-            },
+            }
             _ => {
                 for dir in path.split(".") {
                     match dir {
-                        "" => {},
+                        "" => {}
                         _ => {
                             current.push(dir);
-                        },
+                        }
                     }
                 }
-            },
+            }
         }
-
 
         let mut newdir = String::new();
         for dir in current {
@@ -244,17 +251,35 @@ impl AcsCli {
         let arg1 = args.get(1);
 
         match cmd {
-            "connect" => {self.connect(arg1).await?;},
-            "disconnect" => {self.disconnect().await?;},
-            "get"|"?" => {self.get("gpv", arg1).await?;},
-            "set" => {self.set(arg1).await?;},
-            "ls" => {self.list(arg1).await?;},
-            "cd" => {self.change_directory(arg1).await?;},
-            "upgrade" => {self.upgrade(arg1).await?;},
-            "help" => {self.help();},
-            "exit" => {self.exit = true},
-            "" => {},
-            _ => {self.parse_objpath(cmd).await?;},
+            "connect" => {
+                self.connect(arg1).await?;
+            }
+            "disconnect" => {
+                self.disconnect().await?;
+            }
+            "get" | "?" => {
+                self.get("gpv", arg1).await?;
+            }
+            "set" => {
+                self.set(arg1).await?;
+            }
+            "ls" => {
+                self.list(arg1).await?;
+            }
+            "cd" => {
+                self.change_directory(arg1).await?;
+            }
+            "upgrade" => {
+                self.upgrade(arg1).await?;
+            }
+            "help" => {
+                self.help();
+            }
+            "exit" => self.exit = true,
+            "" => {}
+            _ => {
+                self.parse_objpath(cmd).await?;
+            }
         }
 
         Ok(())
@@ -271,8 +296,7 @@ impl AcsCli {
             suggestions.push(String::from("get "));
             suggestions.push(String::from("set "));
             suggestions.push(String::from("upgrade "));
-        }
-        else {
+        } else {
             suggestions.push(String::from("connect "));
         }
         suggestions
@@ -293,24 +317,28 @@ impl AcsCli {
         let mut suggestions = Vec::<String>::new();
         let sn = match &self.connectedto {
             Some(sn) => sn,
-            None => {return Ok(suggestions);},
+            None => {
+                return Ok(suggestions);
+            }
         };
         let relpath = args.last().unwrap();
         let path = self.abspath(&relpath);
         let objpath = Self::objpath(&path);
         let url = format!("{}/gpn/{}", self.host, sn);
-        let res = self.client.post(&url)
-            .body(objpath)
-            .send().await?;
+        let res = self.client.post(&url).body(objpath).send().await?;
         let content = res.text().await?;
         let content = match content.split_once("\n") {
             Some((_, content)) => content,
-            None => {return Ok(suggestions);},
+            None => {
+                return Ok(suggestions);
+            }
         };
         for line in content.lines() {
             let path = match line.get(5..) {
                 Some(path) => path,
-                None => {continue;},
+                None => {
+                    continue;
+                }
             };
             if let Some(relpath) = self.relpath(path) {
                 suggestions.push(String::from(relpath));
@@ -326,25 +354,22 @@ impl AcsCli {
         if args.len() <= 1 {
             suggestions = self.cmdname_suggestions();
             match self.getset_suggestions(args).await {
-                Ok(mut objects) => {suggestions.append(&mut objects);},
-                Err(_) => {},
+                Ok(mut objects) => {
+                    suggestions.append(&mut objects);
+                }
+                Err(_) => {}
             };
-        }
-        else {
+        } else {
             let cmd = args[0].as_str();
             suggestions = match self.connectedto {
-                Some(_) => {
-                    match cmd {
-                        "get"|"set"|"cd"|"ls" => self.getset_suggestions(args).await?,
-                        "help"|"exit"|"disconnect"|"upgrade"|_ => Vec::<String>::new(),
-                    }
-                }
-                None => {
-                    match cmd {
-                        "cd"|"connect" => self.connect_suggestions().await?,
-                        _ => Vec::<String>::new(),
-                    }
-                }
+                Some(_) => match cmd {
+                    "get" | "set" | "cd" | "ls" => self.getset_suggestions(args).await?,
+                    "help" | "exit" | "disconnect" | "upgrade" | _ => Vec::<String>::new(),
+                },
+                None => match cmd {
+                    "cd" | "connect" => self.connect_suggestions().await?,
+                    _ => Vec::<String>::new(),
+                },
             };
         }
 
@@ -373,18 +398,16 @@ impl AcsCli {
                         println!("Error: {:?}", err);
                     }
                 }
-                Action::AutoComplete(args) => {
-                    match self.autocomplete(&args).await {
-                        Ok(words) => {
-                            if let Err(err) = self.cli.autocomplete(&words) {
-                                println!("Error: {:?}", err);
-                            }
-                        },
-                        Err(err) => {
+                Action::AutoComplete(args) => match self.autocomplete(&args).await {
+                    Ok(words) => {
+                        if let Err(err) = self.cli.autocomplete(&words) {
                             println!("Error: {:?}", err);
-                        },
+                        }
                     }
-                }
+                    Err(err) => {
+                        println!("Error: {:?}", err);
+                    }
+                },
             }
             if self.exit {
                 break;

@@ -15,20 +15,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::sync::{Arc};
-use std::net::SocketAddr;
-use bytes::Bytes;
-use http_body_util::Full;
-use tokio;
-use tokio::sync::{RwLock, mpsc};
-use tokio::time::{Duration, timeout};
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-use hyper::{body::Incoming as IncomingBody, Request, Response};
-use eyre::{Result};
-use crate::acs::{*};
+use crate::acs::*;
 use crate::soap;
 use crate::utils;
+use bytes::Bytes;
+use eyre::Result;
+use http_body_util::Full;
+use hyper::{body::Incoming as IncomingBody, Request, Response};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::{timeout, Duration};
 
 pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,
@@ -59,31 +59,45 @@ impl TR069Session {
 
     async fn cpe_handle_inform(self: &mut Self, inform: &soap::Inform) {
         let mut igd = false;
-        let connreq_url = match inform.parameter_list.get_value("Device.ManagementServer.ConnectionRequestURL") {
+        let connreq_url = match inform
+            .parameter_list
+            .get_value("Device.ManagementServer.ConnectionRequestURL")
+        {
             Some(value) => value,
             None => {
-                match inform.parameter_list.get_value("InternetGatewayDevice.ManagementServer.ConnectionRequestURL") {
+                match inform
+                    .parameter_list
+                    .get_value("InternetGatewayDevice.ManagementServer.ConnectionRequestURL")
+                {
                     Some(value) => {
                         igd = true;
                         value
-                    },
+                    }
                     None => {
                         println!("[SN:{}][SID:{}][{}] Inform message does not contain ConnectionRequestURL", self.sn, self.id, self.counter);
                         return;
                     }
                 }
-            },
+            }
         };
 
         let (connreq_username_path, connreq_password_path) = match igd {
-            true => ("InternetGatewayDevice.ManagementServer.ConnectionRequestUsername",
-                     "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"),
-            false => ("Device.ManagementServer.ConnectionRequestUsername",
-                      "Device.ManagementServer.ConnectionRequestPassword"),
+            true => (
+                "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername",
+                "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword",
+            ),
+            false => (
+                "Device.ManagementServer.ConnectionRequestUsername",
+                "Device.ManagementServer.ConnectionRequestPassword",
+            ),
         };
 
         let mut acs = self.acs.write().await;
-        let cpelock = acs.cpe_list.entry(inform.device_id.serial_number.clone()).or_default().clone();
+        let cpelock = acs
+            .cpe_list
+            .entry(inform.device_id.serial_number.clone())
+            .or_default()
+            .clone();
         drop(acs);
         self.cpe = Some(cpelock.clone());
         let mut cpe = cpelock.write().await;
@@ -94,21 +108,33 @@ impl TR069Session {
         if cpe.connreq.url != connreq_url {
             println!("connreq.url is not configred: Configure ConnectionRequest");
 
-            println!("[SN:{}][SID:{}][{}] Unknown ConnReqURL: Configure CPE ConnectionRequest", self.sn, self.id, self.counter);
+            println!(
+                "[SN:{}][SID:{}][{}] Unknown ConnReqURL: Configure CPE ConnectionRequest",
+                self.sn, self.id, self.counter
+            );
             cpe.connreq.url = String::from(connreq_url);
 
             // Push a tranfer to configure ConnectionRequest with an SPV
             let mut transfer = Transfer::new();
             let spv = transfer.msg.add_spv(1);
             spv.push(soap::ParameterValue::new(
-                connreq_username_path, "xsd:string", &cpe.connreq.username));
+                connreq_username_path,
+                "xsd:string",
+                &cpe.connreq.username,
+            ));
             spv.push(soap::ParameterValue::new(
-                connreq_password_path, "xsd:string", &cpe.connreq.password));
+                connreq_password_path,
+                "xsd:string",
+                &cpe.connreq.password,
+            ));
 
             drop(cpe);
             let controller = CPEController::new(cpelock.clone()).await;
             if let Err(err) = controller.add_transfer(transfer).await {
-                println!("[SN:{}][SID:{}][{}] Failed to configure CPE ConnectionRequest: {:?}", self.sn, self.id, self.counter, err);
+                println!(
+                    "[SN:{}][SID:{}][{}] Failed to configure CPE ConnectionRequest: {:?}",
+                    self.sn, self.id, self.counter, err
+                );
             }
 
             // Save configuration in a dedicated task
@@ -121,7 +147,11 @@ impl TR069Session {
         }
     }
 
-    fn soap_download_set_baseurl(self: &Self, download: &mut soap::Download, req: &mut Request<IncomingBody>) {
+    fn soap_download_set_baseurl(
+        self: &Self,
+        download: &mut soap::Download,
+        req: &mut Request<IncomingBody>,
+    ) {
         if let Some(host) = req.headers().get("host") {
             let host = match host.to_str() {
                 Ok(value) => value,
@@ -137,18 +167,24 @@ impl TR069Session {
         }
     }
 
-    async fn cpe_check_transfers(self: &mut Self, req: &mut Request<IncomingBody>) ->  Result<Response<Full<Bytes>>> {
+    async fn cpe_check_transfers(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         let mut transfer;
         let cpelock = match &self.cpe {
             Some(cpelock) => cpelock,
             None => {
-                println!("[SN:??][SID:??][{}] Send: Reply with no content (Unknown CPE)", self.counter);
+                println!(
+                    "[SN:??][SID:??][{}] Send: Reply with no content (Unknown CPE)",
+                    self.counter
+                );
                 return utils::reply(204, String::from(""));
             }
         };
         let rx = cpelock.read().await.get_transfers_rx();
         loop {
-            let rx_future = timeout(Duration::from_millis(3*1000), rx.recv_async());
+            let rx_future = timeout(Duration::from_millis(3 * 1000), rx.recv_async());
             match rx_future.await {
                 Ok(rx) => {
                     transfer = match rx {
@@ -160,7 +196,7 @@ impl TR069Session {
                         }
                     };
                     break;
-                },
+                }
                 Err(_) => {
                     if !cpelock.read().await.cpe_controller_running() {
                         println!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
@@ -177,12 +213,20 @@ impl TR069Session {
 
         self.observer = transfer.observer;
 
-        println!("[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
-                    self.sn, self.id, self.counter, transfer.msg.kind());
+        println!(
+            "[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
+            self.sn,
+            self.id,
+            self.counter,
+            transfer.msg.kind()
+        );
         return utils::reply_xml(&transfer.msg);
     }
 
-    async fn handle_cpe_request(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    async fn handle_cpe_request(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         //println!("Received from CPE");
         //println!("  Headers: {:?}", req.headers());
 
@@ -203,52 +247,76 @@ impl TR069Session {
                 println!("Failed to parse XML: {:?}", e);
                 println!("Content: [\n{}\n]\nContent End", content);
                 return utils::reply(204, String::from(""));
-            },
+            }
         };
 
         // Process message sent by CPE
         if let Some(inform) = envelope.inform() {
             self.id = envelope.id().to_string();
             self.sn = inform.device_id.serial_number.clone();
-            println!("[SN:{}][SID:{}][{}] Received: Inform message", self.sn, self.id, self.counter);
+            println!(
+                "[SN:{}][SID:{}][{}] Received: Inform message",
+                self.sn, self.id, self.counter
+            );
 
             for event in &inform.event.event_struct {
-                println!("[SN:{}][SID:{}][{}]      Event: {}",
-                    self.sn, self.id, self.counter, event.event_code);
+                println!(
+                    "[SN:{}][SID:{}][{}]      Event: {}",
+                    self.sn, self.id, self.counter, event.event_code
+                );
             }
             self.cpe_handle_inform(&inform).await;
 
-            println!("[SN:{}][SID:{}][{}] Send: Inform Response", self.sn, self.id, self.counter);
+            println!(
+                "[SN:{}][SID:{}][{}] Send: Inform Response",
+                self.sn, self.id, self.counter
+            );
             let mut response = soap::Envelope::new(envelope.id());
             response.add_inform_response();
             return utils::reply_xml(&response);
-        }
-        else if let Some(_gpn_response) = envelope.body.gpn_response.first() {
-            println!("[SN:{}][SID:{}][{}] Received: GPN Response", self.sn, self.id, self.counter);
-        }
-        else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
-            println!("[SN:{}][SID:{}][{}] Received: GPV Response", self.sn, self.id, self.counter);
-        }
-        else if let Some(spv_response) = envelope.body.spv_response.first() {
-            println!("[SN:{}][SID:{}][{}] Received: SPV Response = {}", self.sn, self.id, self.counter, spv_response.status);
-        }
-        else if let Some(download_response) = envelope.body.download_response.first() {
-            println!("[SN:{}][SID:{}][{}] Received: Download Response = {}", self.sn, self.id, self.counter, download_response.status);
-        }
-        else if let Some(transfer_complete) = envelope.body.transfer_complete.first() {
-            println!("[SN:{}][SID:{}][{}] Received: TransferComplete = {:?}", self.sn, self.id, self.counter, transfer_complete);
+        } else if let Some(_gpn_response) = envelope.body.gpn_response.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: GPN Response",
+                self.sn, self.id, self.counter
+            );
+        } else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: GPV Response",
+                self.sn, self.id, self.counter
+            );
+        } else if let Some(spv_response) = envelope.body.spv_response.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: SPV Response = {}",
+                self.sn, self.id, self.counter, spv_response.status
+            );
+        } else if let Some(download_response) = envelope.body.download_response.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: Download Response = {}",
+                self.sn, self.id, self.counter, download_response.status
+            );
+        } else if let Some(transfer_complete) = envelope.body.transfer_complete.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: TransferComplete = {:?}",
+                self.sn, self.id, self.counter, transfer_complete
+            );
 
             let mut response = soap::Envelope::new(envelope.id());
             response.add_transfer_complete_response();
             return utils::reply_xml(&response);
-        }
-        else if let Some(fault) = envelope.body.fault.first() {
-            println!("[SN:{}][SID:{}][{}] Received: Fault: {} - {}", self.sn, self.id, self.counter,
+        } else if let Some(fault) = envelope.body.fault.first() {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: Fault: {} - {}",
+                self.sn,
+                self.id,
+                self.counter,
                 fault.detail.cwmpfault.faultcode.text,
-                fault.detail.cwmpfault.faultstring.text);
-        }
-        else {
-            println!("[SN:{}][SID:{}][{}] Received: Unexpected SOAP/XML Request: {}", self.sn, self.id, self.counter, content);
+                fault.detail.cwmpfault.faultstring.text
+            );
+        } else {
+            println!(
+                "[SN:{}][SID:{}][{}] Received: Unexpected SOAP/XML Request: {}",
+                self.sn, self.id, self.counter, content
+            );
             return utils::reply(204, String::from(""));
         }
 
@@ -256,7 +324,10 @@ impl TR069Session {
         // we forward the CPE response to him.
         if let Some(observer) = self.observer.as_mut() {
             if let Err(err) = observer.send(envelope).await {
-                println!("[SN:{}][SID:{}][{}] Failed to forward response to observer: {:?}", self.sn, self.id, self.counter, err);
+                println!(
+                    "[SN:{}][SID:{}][{}] Failed to forward response to observer: {:?}",
+                    self.sn, self.id, self.counter, err
+                );
             }
             self.observer = None;
         }
@@ -265,14 +336,17 @@ impl TR069Session {
         return self.cpe_check_transfers(req).await;
     }
 
-    async fn handle_download(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    async fn handle_download(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         let download = utils::req_path(&req, 1);
         let path = utils::req_path(&req, 2);
         println!("Handle Download of {}", path);
         let acs = self.acs.read().await;
         let acsdir = acs.acsdir.clone();
         drop(acs);
-        
+
         let mut contents = vec![];
         let filepath = acsdir.join(download).join(path);
         let mut file = File::open(&filepath).await?;
@@ -281,19 +355,25 @@ impl TR069Session {
         Ok(response)
     }
 
-    async fn authorization_error(self: &mut Self, req: &mut Request<IncomingBody>) -> Option<Result<Response<Full<Bytes>>>> {
-
+    async fn authorization_error(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Option<Result<Response<Full<Bytes>>>> {
         match req.headers().get("authorization") {
             Some(wwwauth) => {
                 let wwwauth = match wwwauth.to_str() {
                     Ok(value) => value,
-                    Err(e) => {return Some(Err(e.into()));},
+                    Err(e) => {
+                        return Some(Err(e.into()));
+                    }
                 };
                 if wwwauth == &self.acs.read().await.basicauth {
                     None
-                }
-                else {
-                    println!("[SN:??][SID:??][{}] Access forbidden: {}", self.counter, wwwauth);
+                } else {
+                    println!(
+                        "[SN:??][SID:??][{}] Access forbidden: {}",
+                        self.counter, wwwauth
+                    );
                     Some(utils::reply(403, String::from("Forbidden\n")))
                 }
             }
@@ -313,8 +393,10 @@ impl TR069Session {
         }
     }
 
-
-    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    pub async fn handle(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         self.counter += 1;
 
         if let Some(reply) = self.authorization_error(req).await {
@@ -325,11 +407,11 @@ impl TR069Session {
         let reply = match command.as_str() {
             "cwmpWeb" => self.handle_cpe_request(req).await,
             "download" => self.handle_download(req).await,
-            _                 => utils::reply(403, String::from("Forbidden\n")),
+            _ => utils::reply(403, String::from("Forbidden\n")),
         };
 
         match reply {
-            Ok(reply)  => Ok(reply),
+            Ok(reply) => Ok(reply),
             Err(error) => utils::reply_error(error),
         }
     }
