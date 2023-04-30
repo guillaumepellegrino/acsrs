@@ -92,7 +92,7 @@ impl ParameterValue {
             value: Value {
                 xsi_type: String::from(xsi_type),
                 text: String::from(value),
-            }
+            },
         }
     }
 }
@@ -148,9 +148,7 @@ pub struct InformResponse {
 
 impl Default for InformResponse {
     fn default() -> Self {
-        Self {
-            max_envelopes: 1,
-        }
+        Self { max_envelopes: 1 }
     }
 }
 
@@ -190,7 +188,6 @@ pub struct GetParameterNamesResponse {
     parameter_list: ParameterListInfo,
 }
 
-
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterNames {
     #[serde(rename = "@soap:arrayType")]
@@ -211,14 +208,14 @@ pub struct GetParameterValues {
 impl GetParameterValues {
     pub fn push(self: &mut Self, name: &str) -> &mut Self {
         self.parameter_names.string.push(String::from(name));
-        self.parameter_names.array_type = format!("xsd:string[{}]", self.parameter_names.string.len());
+        self.parameter_names.array_type =
+            format!("xsd:string[{}]", self.parameter_names.string.len());
         self
     }
 
     pub fn len(self: &Self) -> usize {
         self.parameter_names.string.len()
     }
-
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
@@ -309,7 +306,7 @@ impl Download {
     }
 
     pub fn set_command_key(self: &mut Self, value: &str) -> &mut Self {
-        self.command_key= Value {
+        self.command_key = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
         };
@@ -419,7 +416,6 @@ pub struct TransferComplete {
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct TransferCompleteResponse {}
 
-
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Reboot {
     #[serde(rename = "CommandKey")]
@@ -432,7 +428,7 @@ impl Reboot {
             command_key: Value {
                 xsi_type: String::from("xsd:string"),
                 text: String::from(command_key),
-            }
+            },
         }
     }
 }
@@ -455,7 +451,7 @@ pub struct CwmpFault {
 pub struct SoapFaultDetail {
     #[serde(rename(serialize = "cwmp:Fault", deserialize = "Fault"))]
     #[serde(default)]
-    pub cwmpfault: CwmpFault
+    pub cwmpfault: CwmpFault,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
@@ -503,28 +499,45 @@ pub struct Body {
     #[serde(default)]
     pub inform_response: Vec<InformResponse>,
 
-
-    #[serde(rename(serialize = "cwmp:GetParameterNames", deserialize = "GetParameterNames"))]
+    #[serde(rename(
+        serialize = "cwmp:GetParameterNames",
+        deserialize = "GetParameterNames"
+    ))]
     #[serde(default)]
     pub gpn: Vec<GetParameterNames>,
 
-    #[serde(rename(serialize = "cwmp:GetParameterNamesResponse", deserialize = "GetParameterNamesResponse"))]
+    #[serde(rename(
+        serialize = "cwmp:GetParameterNamesResponse",
+        deserialize = "GetParameterNamesResponse"
+    ))]
     #[serde(default)]
     pub gpn_response: Vec<GetParameterNamesResponse>,
 
-    #[serde(rename(serialize = "cwmp:GetParameterValues", deserialize = "GetParameterValues"))]
+    #[serde(rename(
+        serialize = "cwmp:GetParameterValues",
+        deserialize = "GetParameterValues"
+    ))]
     #[serde(default)]
     pub gpv: Vec<GetParameterValues>,
 
-    #[serde(rename(serialize = "cwmp:GetParameterValuesResponse", deserialize = "GetParameterValuesResponse"))]
+    #[serde(rename(
+        serialize = "cwmp:GetParameterValuesResponse",
+        deserialize = "GetParameterValuesResponse"
+    ))]
     #[serde(default)]
     pub gpv_response: Vec<GetParameterValuesResponse>,
 
-    #[serde(rename(serialize = "cwmp:SetParameterValues", deserialize = "SetParameterValues"))]
+    #[serde(rename(
+        serialize = "cwmp:SetParameterValues",
+        deserialize = "SetParameterValues"
+    ))]
     #[serde(default)]
     pub spv: Vec<SetParameterValues>,
 
-    #[serde(rename(serialize = "cwmp:SetParameterValuesResponse", deserialize = "SetParameterValuesResponse"))]
+    #[serde(rename(
+        serialize = "cwmp:SetParameterValuesResponse",
+        deserialize = "SetParameterValuesResponse"
+    ))]
     #[serde(default)]
     pub spv_response: Vec<SetParameterValuesResponse>,
 
@@ -540,7 +553,10 @@ pub struct Body {
     #[serde(default)]
     pub transfer_complete: Vec<TransferComplete>,
 
-    #[serde(rename(serialize = "cwmp:TransferCompleteResponse", deserialize = "TransferCompleteResponse"))]
+    #[serde(rename(
+        serialize = "cwmp:TransferCompleteResponse",
+        deserialize = "TransferCompleteResponse"
+    ))]
     #[serde(default)]
     pub transfer_complete_response: Vec<TransferCompleteResponse>,
 
@@ -554,7 +570,7 @@ pub struct Body {
 
     #[serde(rename(serialize = "soapenv:Fault", deserialize = "Fault"))]
     #[serde(default)]
-    pub fault: Vec<SoapFault>
+    pub fault: Vec<SoapFault>,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
@@ -603,50 +619,35 @@ impl Envelope {
     pub fn kind(self: &Self) -> Kind {
         if self.body.inform.first().is_some() {
             Kind::Inform
-        }
-        else if self.body.inform_response.first().is_some() {
+        } else if self.body.inform_response.first().is_some() {
             Kind::InformResponse
-        }
-        else if self.body.gpn.first().is_some() {
+        } else if self.body.gpn.first().is_some() {
             Kind::GetParameterNames
-        }
-        else if self.body.gpn_response.first().is_some() {
+        } else if self.body.gpn_response.first().is_some() {
             Kind::GetParameterNamesResponse
-        }
-        else if self.body.gpv.first().is_some() {
+        } else if self.body.gpv.first().is_some() {
             Kind::GetParameterValues
-        }
-        else if self.body.gpv_response.first().is_some() {
+        } else if self.body.gpv_response.first().is_some() {
             Kind::GetParameterValuesResponse
-        }
-        else if self.body.spv.first().is_some() {
+        } else if self.body.spv.first().is_some() {
             Kind::SetParameterValues
-        }
-        else if self.body.spv_response.first().is_some() {
+        } else if self.body.spv_response.first().is_some() {
             Kind::SetParameterValuesResponse
-        }
-        else if self.body.download.first().is_some() {
+        } else if self.body.download.first().is_some() {
             Kind::Download
-        }
-        else if self.body.download_response.first().is_some() {
+        } else if self.body.download_response.first().is_some() {
             Kind::DownloadResponse
-        }
-        else if self.body.transfer_complete.first().is_some() {
+        } else if self.body.transfer_complete.first().is_some() {
             Kind::TransferComplete
-        }
-        else if self.body.transfer_complete_response.first().is_some() {
+        } else if self.body.transfer_complete_response.first().is_some() {
             Kind::TransferCompleteResponse
-        }
-        else if self.body.reboot.first().is_some() {
+        } else if self.body.reboot.first().is_some() {
             Kind::Reboot
-        }
-        else if self.body.reboot_response.first().is_some() {
+        } else if self.body.reboot_response.first().is_some() {
             Kind::RebootResponse
-        }
-        else if self.body.fault.first().is_some() {
+        } else if self.body.fault.first().is_some() {
             Kind::Fault
-        }
-        else {
+        } else {
             Kind::Unknown
         }
     }
@@ -657,7 +658,9 @@ impl Envelope {
     }
 
     pub fn add_transfer_complete_response(self: &mut Self) -> &mut TransferCompleteResponse {
-        self.body.transfer_complete_response.push(TransferCompleteResponse::default());
+        self.body
+            .transfer_complete_response
+            .push(TransferCompleteResponse::default());
         self.body.transfer_complete_response.first_mut().unwrap()
     }
 
@@ -707,34 +710,30 @@ impl Envelope {
 impl std::fmt::Display for Envelope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(fault) = self.body.fault.first() {
-            return write!(f, "{} - {}",
-                fault.detail.cwmpfault.faultcode.text,
-                fault.detail.cwmpfault.faultstring.text);
-        }
-        else if let Some(response) = self.body.gpn_response.first() {
+            return write!(
+                f,
+                "{} - {}",
+                fault.detail.cwmpfault.faultcode.text, fault.detail.cwmpfault.faultstring.text
+            );
+        } else if let Some(response) = self.body.gpn_response.first() {
             for pn in &response.parameter_list.parameter_info {
                 if pn.writable == 1 {
                     write!(f, "<r-> {}\n", pn.name)?;
-                }
-                else {
+                } else {
                     write!(f, "<rw> {}\n", pn.name)?;
                 }
             }
             return write!(f, "");
-        }
-        else if let Some(response) = self.body.gpv_response.first() {
+        } else if let Some(response) = self.body.gpv_response.first() {
             for pv in &response.parameter_list.parameter_values {
                 write!(f, "{}={}\n", pv.name, pv.value.text)?;
             }
             return write!(f, "");
-        }
-        else if let Some(response) = self.body.spv_response.first() {
+        } else if let Some(response) = self.body.spv_response.first() {
             return write!(f, "Status: {}", response.status);
-        }
-        else if let Some(response) = self.body.download_response.first() {
+        } else if let Some(response) = self.body.download_response.first() {
             return write!(f, "Status: {}", response.status);
-        }
-        else {
+        } else {
             return write!(f, "Empty response");
         }
     }
@@ -742,8 +741,10 @@ impl std::fmt::Display for Envelope {
 
 #[test]
 fn test_bootstrap() {
-    let xml: String = std::fs::read_to_string("test/bootstrap.xml").unwrap()
-        .parse().unwrap();
+    let xml: String = std::fs::read_to_string("test/bootstrap.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
 
     let bootstrap: Envelope = quick_xml::de::from_str(&xml).unwrap();
     println!("bootstrap = {:?}", bootstrap);
@@ -757,22 +758,31 @@ fn test_bootstrap() {
 
     {
         let ipaddress = ParameterValue::new(
-            "Device.IP.Interface.1.IPv4Address.1.IPAddress", "xsd:string", "192.168.1.1");
+            "Device.IP.Interface.1.IPv4Address.1.IPAddress",
+            "xsd:string",
+            "192.168.1.1",
+        );
         assert!(inform.parameter_list.parameter_values.contains(&ipaddress));
     }
     {
         let connreq_url = ParameterValue::new(
             "Device.ManagementServer.ConnectionRequestURL",
             "xsd:string",
-            "http://192.168.1.1:7547/rnmDInfGzCpBvacM");
-        assert!(inform.parameter_list.parameter_values.contains(&connreq_url));
+            "http://192.168.1.1:7547/rnmDInfGzCpBvacM",
+        );
+        assert!(inform
+            .parameter_list
+            .parameter_values
+            .contains(&connreq_url));
     }
 }
 
 #[test]
 fn test_transfer_complete() {
-    let xml: String = std::fs::read_to_string("test/transfer_complete.xml").unwrap()
-        .parse().unwrap();
+    let xml: String = std::fs::read_to_string("test/transfer_complete.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
 
     let transfer_complete: Envelope = quick_xml::de::from_str(&xml).unwrap();
     println!("transfer_complete = {:?}", transfer_complete);
@@ -789,7 +799,10 @@ fn test_inform_response() {
     let mut envelope = Envelope::new("2");
     envelope.add_inform_response();
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/inform_response.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/inform_response.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }
 
@@ -798,7 +811,10 @@ fn test_gpn() {
     let mut envelope = Envelope::new("2");
     envelope.add_gpn("Device.", false);
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/gpn.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/gpn.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }
 
@@ -809,7 +825,10 @@ fn test_gpv() {
     gpv.push("Device.");
 
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/gpv.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/gpv.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }
 
@@ -817,10 +836,17 @@ fn test_gpv() {
 fn test_spv() {
     let mut envelope = Envelope::new("2");
     let spv = envelope.add_spv(2302518885);
-    spv.push(ParameterValue::new("Device.ManagementServer.Enable", "xsd:boolean", "1"));
+    spv.push(ParameterValue::new(
+        "Device.ManagementServer.Enable",
+        "xsd:boolean",
+        "1",
+    ));
 
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/spv.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/spv.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }
 
@@ -841,7 +867,10 @@ fn test_download() {
         .set_failure_url("failure");
 
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/download.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/download.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }
 
@@ -851,6 +880,9 @@ fn test_reboot() {
     envelope.add_reboot("123456");
 
     let value = quick_xml::se::to_string(&envelope).unwrap();
-    let expected: String = std::fs::read_to_string("test/reboot.xml").unwrap().parse().unwrap();
+    let expected: String = std::fs::read_to_string("test/reboot.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
     assert_eq!(value, expected.trim());
 }

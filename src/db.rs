@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use eyre::{Result};
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct CPE {
@@ -65,4 +65,3 @@ impl Acs {
         Ok(acs)
     }
 }
-

@@ -15,23 +15,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::sync::{Arc};
-use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Occupied, Vacant};
-use bytes::Bytes;
-use http_body_util::{Full};
-use tokio;
-use tokio::sync::{RwLock};
-use tokio::time::{Duration, timeout};
-use hyper::{body::Incoming as IncomingBody, Request, Response};
-use regex::Regex;
-use eyre::{Result, eyre, WrapErr};
-use serde::Deserialize;
-use serde::Serialize;
-use crate::acs::{*};
+use crate::acs::*;
 use crate::soap;
 use crate::utils;
-
+use bytes::Bytes;
+use eyre::{eyre, Result, WrapErr};
+use http_body_util::Full;
+use hyper::{body::Incoming as IncomingBody, Request, Response};
+use regex::Regex;
+use serde::Deserialize;
+use serde::Serialize;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio;
+use tokio::sync::RwLock;
+use tokio::time::{timeout, Duration};
 
 pub struct ManagementSession {
     acs: Arc<RwLock<Acs>>,
@@ -52,35 +51,42 @@ impl ManagementSession {
         }
     }
 
-    async fn cpe_transfer(self: &mut Self, serial_number: &str, request: soap::Envelope) -> Result<soap::Envelope> {
+    async fn cpe_transfer(
+        self: &mut Self,
+        serial_number: &str,
+        request: soap::Envelope,
+    ) -> Result<soap::Envelope> {
         // Create a new transfer for the CPE
         let mut transfer = Transfer::new();
         transfer.msg = request;
         let mut rx = transfer.rxchannel();
 
-        // Get or add a CPE Controller 
+        // Get or add a CPE Controller
         // and then add the transfer to it.
         let entry = self.controller_list.entry(String::from(serial_number));
         match entry {
             Occupied(o) => {
                 let controller = o.get();
                 controller.add_transfer(transfer).await?;
-            },
+            }
             Vacant(v) => {
                 // Get the CPE context from its serial number
                 let cpe = match self.acs.read().await.cpe_list.get(serial_number) {
                     Some(cpe) => cpe.clone(),
-                    None => {return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));}
+                    None => {
+                        return Err(eyre!("CPE with SN:{} is not registered\n", serial_number));
+                    }
                 };
                 let controller = v.insert(CPEController::new(cpe.clone()).await);
                 controller.add_transfer(transfer).await?;
-            },
+            }
         };
 
         // Wait for our ACS server to get the transfer response
-        let rx_future = timeout(Duration::from_millis(60*1000), rx.recv());
-        let rx = rx_future.await
-            .wrap_err_with(|| {format!("ACS server failed to get a response from CPE")})?;
+        let rx_future = timeout(Duration::from_millis(60 * 1000), rx.recv());
+        let rx = rx_future
+            .await
+            .wrap_err_with(|| format!("ACS server failed to get a response from CPE"))?;
         let response = match rx {
             Some(response) => response,
             None => {
@@ -96,22 +102,30 @@ impl ManagementSession {
             Ok(envelope) => {
                 let s = format!("> {:?}:\n{}\n", envelope.kind(), envelope);
                 utils::reply(200, s)
-            },
+            }
             Err(err) => {
                 let s = format!("> Error:\n{:?}\n", err);
                 utils::reply(400, s)
-            },
+            }
         }
     }
 
-    async fn handle_gpn_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_gpn_request(
+        self: &mut Self,
+        serial_number: &str,
+        content: &str,
+    ) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new("");
         envelope.add_gpn(content, true);
         let result = self.cpe_transfer(&serial_number, envelope).await;
         Self::soap_response(&result).await
     }
 
-    async fn handle_gpv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_gpv_request(
+        self: &mut Self,
+        serial_number: &str,
+        content: &str,
+    ) -> Result<Response<Full<Bytes>>> {
         let mut envelope = soap::Envelope::new("");
         let gpv = envelope.add_gpv();
         for param in content.split(";") {
@@ -121,7 +135,11 @@ impl ManagementSession {
         Self::soap_response(&result).await
     }
 
-    async fn handle_spv_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_spv_request(
+        self: &mut Self,
+        serial_number: &str,
+        content: &str,
+    ) -> Result<Response<Full<Bytes>>> {
         let mut gpv_envelope = soap::Envelope::new("");
         let mut spv_envelope = soap::Envelope::new("");
         let gpv = gpv_envelope.add_gpv();
@@ -137,17 +155,18 @@ impl ManagementSession {
                     let value = captures.get(3).ok_or(eyre!("invalid expression"))?.as_str();
                     //println!("SPV({},{},{})", key, xsd_type, value);
                     spv.push(soap::ParameterValue::new(key, &xsd_type, value));
-                },
+                }
                 None => {
                     // let's query the parameter type with a GPV
-                    let captures = regex_key_value.captures(param)
+                    let captures = regex_key_value
+                        .captures(param)
                         .ok_or(eyre!("invalid expression"))?;
 
                     let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
                     let value = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
                     gpv.push(key);
                     spv.push(soap::ParameterValue::new(key, "", value));
-                },
+                }
             };
         }
 
@@ -156,7 +175,9 @@ impl ManagementSession {
             let result = self.cpe_transfer(&serial_number, gpv_envelope).await?;
             let response = match result.body.gpv_response.first() {
                 Some(response) => response,
-                None => {return Self::soap_response(&Ok(result)).await;},
+                None => {
+                    return Self::soap_response(&Ok(result)).await;
+                }
             };
             for gpv_pv in &response.parameter_list.parameter_values {
                 for spv_pv in &mut spv.parameter_list.parameter_values {
@@ -172,7 +193,11 @@ impl ManagementSession {
         Self::soap_response(&result).await
     }
 
-    async fn handle_download_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_download_request(
+        self: &mut Self,
+        serial_number: &str,
+        content: &str,
+    ) -> Result<Response<Full<Bytes>>> {
         #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
         struct Download {
             #[serde(default)]
@@ -208,7 +233,8 @@ impl ManagementSession {
         let download: Download = serde_qs::from_str(&content)?;
 
         let mut envelope = soap::Envelope::new("");
-        envelope.add_download()
+        envelope
+            .add_download()
             .set_command_key(&download.command_key)
             .set_file_type(&download.file_type)
             .set_url(&download.url)
@@ -224,8 +250,11 @@ impl ManagementSession {
         Self::soap_response(&result).await
     }
 
-
-    async fn handle_upgrade_request(self: &mut Self, serial_number: &str, content: &str) -> Result<Response<Full<Bytes>>> {
+    async fn handle_upgrade_request(
+        self: &mut Self,
+        serial_number: &str,
+        content: &str,
+    ) -> Result<Response<Full<Bytes>>> {
         #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
         struct Upgrade {
             #[serde(default)]
@@ -236,7 +265,8 @@ impl ManagementSession {
         let acs = self.acs.read().await;
         let url = format!("${{baseurl}}/download/{}", upgrade.file_name);
         let mut envelope = soap::Envelope::new("");
-        envelope.add_download()
+        envelope
+            .add_download()
             .set_command_key("upgrade")
             .set_file_type("1 Firmware Upgrade Image")
             .set_url(&url)
@@ -255,7 +285,10 @@ impl ManagementSession {
 
         for (sn, cpe) in &acs.cpe_list {
             let cpe = cpe.read().await;
-            s += &format!("{} - {} - {} - {} \n", sn, cpe.connreq.url, cpe.connreq.username, cpe.connreq.password);
+            s += &format!(
+                "{} - {} - {} - {} \n",
+                sn, cpe.connreq.url, cpe.connreq.username, cpe.connreq.password
+            );
         }
         utils::reply(200, s)
     }
@@ -290,7 +323,10 @@ impl ManagementSession {
         utils::reply(200, s)
     }
 
-    async fn handle_err404(self: &Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    async fn handle_err404(
+        self: &Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         let s = format!("Unknown request: {}\n", req.uri());
         utils::reply(404, s)
     }
@@ -299,21 +335,24 @@ impl ManagementSession {
     // - Check if a session is already opened before sending a ConnectionRequest.
     // - Maintain the connection to CPE open as long as one management session is opened.
     //
-    pub async fn handle(self: &mut Self, req: &mut Request<IncomingBody>) -> Result<Response<Full<Bytes>>> {
+    pub async fn handle(
+        self: &mut Self,
+        req: &mut Request<IncomingBody>,
+    ) -> Result<Response<Full<Bytes>>> {
         let command = utils::req_path(&req, 1);
         let serial_number = utils::req_path(&req, 2);
         let content = utils::content(req).await?;
         let reply = match command.as_str() {
-            "gpn"       => self.handle_gpn_request(&serial_number, &content).await,
-            "gpv"       => self.handle_gpv_request(&serial_number, &content).await,
-            "spv"       => self.handle_spv_request(&serial_number, &content).await,
-            "download"  => self.handle_download_request(&serial_number, &content).await,
-            "upgrade"   => self.handle_upgrade_request(&serial_number, &content).await,
-            "list"      => self.handle_list_request().await,
-            "snlist"    => self.handle_snlist_request().await,
-            "stats"     => self.handle_stats_request().await,
-            ""          => self.handle_welcome_request().await,
-            _           => self.handle_err404(req).await,
+            "gpn" => self.handle_gpn_request(&serial_number, &content).await,
+            "gpv" => self.handle_gpv_request(&serial_number, &content).await,
+            "spv" => self.handle_spv_request(&serial_number, &content).await,
+            "download" => self.handle_download_request(&serial_number, &content).await,
+            "upgrade" => self.handle_upgrade_request(&serial_number, &content).await,
+            "list" => self.handle_list_request().await,
+            "snlist" => self.handle_snlist_request().await,
+            "stats" => self.handle_stats_request().await,
+            "" => self.handle_welcome_request().await,
+            _ => self.handle_err404(req).await,
         };
 
         match reply {
@@ -322,8 +361,6 @@ impl ManagementSession {
         }
     }
 }
-
-
 
 #[tokio::test]
 async fn test_mpmc() {

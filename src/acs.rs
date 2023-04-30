@@ -15,16 +15,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::sync::{Arc};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use tokio;
-use tokio::sync::{RwLock, mpsc};
-use base64::Engine;
-use eyre::{Result, eyre};
+use crate::db;
 use crate::soap;
 use crate::utils;
-use crate::db;
+use base64::Engine;
+use eyre::{eyre, Result};
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio;
+use tokio::sync::{mpsc, RwLock};
 
 #[derive(Debug, Clone)]
 pub struct Connreq {
@@ -101,14 +101,20 @@ impl Connreq {
         // Step 1:  Get the auth header
         let res = client.get(&self.url).send().await?;
         let headers = res.headers();
-        let wwwauth = headers.get("www-authenticate")
-            .ok_or(eyre!("connreq reply without auth header"))?.to_str()?;
+        let wwwauth = headers
+            .get("www-authenticate")
+            .ok_or(eyre!("connreq reply without auth header"))?
+            .to_str()?;
 
         // Step 2:  Given the auth header, sign the digest for the real req.
         let context = digest_auth::AuthContext::new(&self.username, &self.password, "/");
         let mut prompt = digest_auth::parse(wwwauth)?;
         let answer = prompt.respond(&context)?.to_header_string();
-        let response = client.get(&self.url).header("Authorization", answer).send().await?;
+        let response = client
+            .get(&self.url)
+            .header("Authorization", answer)
+            .send()
+            .await?;
 
         match response.status() {
             reqwest::StatusCode::OK => Ok(()),
@@ -149,8 +155,8 @@ impl CPE {
     }
 }
 
-impl CPEController  {
-    pub async fn new(cpelock: Arc<RwLock<CPE>>) -> Self  {
+impl CPEController {
+    pub async fn new(cpelock: Arc<RwLock<CPE>>) -> Self {
         let cpe = cpelock.read().await;
         Self {
             cpe: cpelock.clone(),
@@ -236,7 +242,8 @@ impl Acs {
             cpe.connreq.url = elem.url.clone();
             cpe.connreq.username = elem.username.clone();
             cpe.connreq.password = elem.password.clone();
-            acs.cpe_list.insert(elem.serial_number.clone(), Arc::new(RwLock::new(cpe)));
+            acs.cpe_list
+                .insert(elem.serial_number.clone(), Arc::new(RwLock::new(cpe)));
         }
 
         Ok(acs)
@@ -246,13 +253,21 @@ impl Acs {
         println!("");
         let addr: SocketAddr = self.config.secure_address.parse().unwrap();
         println!("For secure connections, please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=https://{}:{}/cwmpWeb/CPEMgt", hostname, addr.port());
+        println!(
+            "Device.ManagementServer.URL=https://{}:{}/cwmpWeb/CPEMgt",
+            hostname,
+            addr.port()
+        );
         println!("Device.ManagementServer.Username={}", self.config.username);
         println!("Device.ManagementServer.Password={}", self.config.password);
         println!("");
         let addr: SocketAddr = self.config.unsecure_address.parse().unwrap();
         println!("For unsecure connections, please ensure your CPEs are configured with:");
-        println!("Device.ManagementServer.URL=http://{}:{}/cwmpWeb/CPEMgt", hostname, addr.port());
+        println!(
+            "Device.ManagementServer.URL=http://{}:{}/cwmpWeb/CPEMgt",
+            hostname,
+            addr.port()
+        );
         println!("Device.ManagementServer.Username={}", self.config.username);
         println!("Device.ManagementServer.Password={}", self.config.password);
         println!("");
@@ -266,11 +281,13 @@ async fn test_acs_save_restore() {
 
     let mut cpe1 = CPE::default();
     cpe1.connreq.url = String::from("http://192.168.1.X:7547/CPE1");
-    acs.cpe_list.insert("CPE1_SN".to_string(), Arc::new(RwLock::new(cpe1)));
+    acs.cpe_list
+        .insert("CPE1_SN".to_string(), Arc::new(RwLock::new(cpe1)));
 
     let mut cpe2 = CPE::default();
     cpe2.connreq.url = String::from("http://192.168.1.X:7547/CPE2");
-    acs.cpe_list.insert("CPE2_SN".to_string(), Arc::new(RwLock::new(cpe2)));
+    acs.cpe_list
+        .insert("CPE2_SN".to_string(), Arc::new(RwLock::new(cpe2)));
 
     acs.save().await.unwrap();
 
@@ -278,6 +295,12 @@ async fn test_acs_save_restore() {
     assert_eq!(&restored.config.username, &acs.config.username);
     assert_eq!(&restored.config.password, &acs.config.password);
     assert_eq!(&restored.basicauth, &acs.basicauth);
-    assert_eq!(&restored.cpe_list["CPE1_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE1");
-    assert_eq!(&restored.cpe_list["CPE2_SN"].read().await.connreq.url, "http://192.168.1.X:7547/CPE2");
+    assert_eq!(
+        &restored.cpe_list["CPE1_SN"].read().await.connreq.url,
+        "http://192.168.1.X:7547/CPE1"
+    );
+    assert_eq!(
+        &restored.cpe_list["CPE2_SN"].read().await.connreq.url,
+        "http://192.168.1.X:7547/CPE2"
+    );
 }

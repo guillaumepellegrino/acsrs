@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use bytes::Bytes;
-use http_body_util::{Full, BodyExt};
-use hyper::{body::Incoming as IncomingBody, Request, Response};
 use crate::soap;
-use rand::{thread_rng, Rng, distributions::Alphanumeric};
+use bytes::Bytes;
+use eyre::Result;
+use http_body_util::{BodyExt, Full};
+use hyper::{body::Incoming as IncomingBody, Request, Response};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::io::Write;
-use eyre::{Result};
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     let mut i = 0;
@@ -39,8 +39,7 @@ pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
 }
 
 pub fn reply(statuscode: u16, response: String) -> Result<Response<Full<Bytes>>> {
-    let builder = Response::builder()
-        .status(statuscode);
+    let builder = Response::builder().status(statuscode);
     let reply = builder.body(Full::new(Bytes::from(response)))?;
     Ok(reply)
 }
@@ -84,7 +83,8 @@ pub fn gencertificates(acsdir: &std::path::Path, common_name: &str) {
         .current_dir(acsdir)
         .env("CN", common_name)
         .stdin(std::process::Stdio::piped())
-        .spawn().unwrap();
+        .spawn()
+        .unwrap();
 
     let child_stdin = child.stdin.as_mut().unwrap();
     child_stdin.write_all(bytes).unwrap();
