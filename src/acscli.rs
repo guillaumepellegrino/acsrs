@@ -17,8 +17,7 @@
  */
 
 use eyre::{eyre, Result};
-mod cli;
-use crate::cli::{Action, Cli};
+use tokiocli::{Action, Cli};
 
 struct AcsCli {
     cli: Cli,
