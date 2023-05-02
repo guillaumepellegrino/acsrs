@@ -23,7 +23,7 @@ use eyre::{eyre, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio;
+
 use tokio::sync::{mpsc, RwLock};
 
 #[derive(Debug, Clone)]
@@ -40,6 +40,7 @@ pub struct Transfer {
 }
 
 #[derive(Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct CPE {
     pub device_id: soap::DeviceId,
     pub connreq: Connreq,
@@ -77,7 +78,7 @@ impl Transfer {
         }
     }
 
-    pub fn rxchannel(self: &mut Self) -> mpsc::Receiver<soap::Envelope> {
+    pub fn rxchannel(&mut self) -> mpsc::Receiver<soap::Envelope> {
         let (tx, rx) = mpsc::channel(1);
         self.observer = Some(tx);
         rx
@@ -95,7 +96,7 @@ impl Default for Connreq {
 }
 
 impl Connreq {
-    pub async fn send(self: &Self) -> Result<()> {
+    pub async fn send(&self) -> Result<()> {
         let client = reqwest::Client::new();
 
         // Step 1:  Get the auth header
@@ -139,18 +140,18 @@ impl Default for CPE {
 }
 
 impl CPE {
-    pub fn tr069_session_opened(self: &Self) -> bool {
+    pub fn tr069_session_opened(&self) -> bool {
         Arc::strong_count(&self.tr069_session_refcount) > 1
     }
 
-    pub fn cpe_controller_running(self: &Self) -> bool {
+    pub fn cpe_controller_running(&self) -> bool {
         Arc::strong_count(&self.cpe_controllers_refcount) > 1
     }
 
-    pub fn get_tr069_session_refcount(self: &Self) -> Arc<()> {
+    pub fn get_tr069_session_refcount(&self) -> Arc<()> {
         self.tr069_session_refcount.clone()
     }
-    pub fn get_transfers_rx(self: &Self) -> flume::Receiver<Transfer> {
+    pub fn get_transfers_rx(&self) -> flume::Receiver<Transfer> {
         self.transfers_rx.clone()
     }
 }
@@ -165,7 +166,7 @@ impl CPEController {
         }
     }
 
-    pub async fn add_transfer(self: &Self, transfer: Transfer) -> Result<()> {
+    pub async fn add_transfer(&self, transfer: Transfer) -> Result<()> {
         self.transfers_tx.send_async(transfer).await?;
 
         let cpe = self.cpe.read().await;
@@ -203,16 +204,18 @@ impl Acs {
 
     fn basicauth(username: &str, password: &str) -> String {
         let token = format!("{}:{}", username, password);
-        let token64 = base64::engine::general_purpose::STANDARD.encode(&token);
+        let token64 = base64::engine::general_purpose::STANDARD.encode(token);
         format!("Basic {}", token64)
     }
 
-    pub async fn save(self: &Self) -> Result<()> {
+    pub async fn save(&self) -> Result<()> {
         let savefile = self.acsdir.join("config.toml");
         println!("Save ACS config at {:?}", savefile);
 
-        let mut db = db::Acs::default();
-        db.config = self.config.clone();
+        let mut db = db::Acs {
+            config: self.config.clone(),
+            ..Default::default()
+        };
 
         for (sn, cpe) in &self.cpe_list {
             let cpe = cpe.read().await;
@@ -249,17 +252,15 @@ impl Acs {
         Ok(acs)
     }
 
-    pub fn print_config(self: &Self, hostname: &str) {
-        let hostname = match hostname.contains(":") {
+    pub fn print_config(&self, hostname: &str) {
+        let hostname = match hostname.contains(':') {
             true => {
                 format!("[{}]", hostname)
             }
-            false => {
-                format!("{}", hostname)
-            }
+            false => hostname.to_string(),
         };
 
-        println!("");
+        println!();
         let addr: SocketAddr = self.config.secure_address.parse().unwrap();
         println!("For secure connections, please ensure your CPEs are configured with:");
         println!(
@@ -275,7 +276,7 @@ impl Acs {
             "Device.ManagementServer.Password=\"{}\"",
             self.config.password
         );
-        println!("");
+        println!();
         let addr: SocketAddr = self.config.unsecure_address.parse().unwrap();
         println!("For unsecure connections, please ensure your CPEs are configured with:");
         println!(
@@ -291,7 +292,7 @@ impl Acs {
             "Device.ManagementServer.Password=\"{}\"",
             self.config.password
         );
-        println!("");
+        println!();
     }
 }
 

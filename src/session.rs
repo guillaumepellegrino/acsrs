@@ -24,7 +24,7 @@ use http_body_util::Full;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio;
+
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, RwLock};
@@ -45,19 +45,19 @@ pub struct TR069Session {
 impl TR069Session {
     pub fn new(acs: Arc<RwLock<Acs>>, srvaddr: SocketAddr, secure: bool) -> Self {
         Self {
-            acs: acs,
+            acs,
             cpe: None,
             observer: None,
             refcount: None,
-            srvaddr: srvaddr,
-            secure: secure,
+            srvaddr,
+            secure,
             sn: String::new(),
             id: String::from("0"),
             counter: 0,
         }
     }
 
-    async fn cpe_handle_inform(self: &mut Self, inform: &soap::Inform) {
+    async fn cpe_handle_inform(&mut self, inform: &soap::Inform) {
         let mut igd = false;
         let connreq_url = match inform
             .parameter_list
@@ -101,7 +101,7 @@ impl TR069Session {
         drop(acs);
         self.cpe = Some(cpelock.clone());
         let mut cpe = cpelock.write().await;
-        if self.refcount == None {
+        if self.refcount.is_none() {
             self.refcount = Some(cpe.get_tr069_session_refcount());
         }
         cpe.device_id = inform.device_id.clone();
@@ -148,15 +148,12 @@ impl TR069Session {
     }
 
     fn soap_download_set_baseurl(
-        self: &Self,
+        &self,
         download: &mut soap::Download,
         req: &mut Request<IncomingBody>,
     ) {
         if let Some(host) = req.headers().get("host") {
-            let host = match host.to_str() {
-                Ok(value) => value,
-                Err(_) => "",
-            };
+            let host = host.to_str().unwrap_or("");
             let protocol = match self.secure {
                 true => "https",
                 false => "http",
@@ -168,7 +165,7 @@ impl TR069Session {
     }
 
     async fn cpe_check_transfers(
-        self: &mut Self,
+        &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
         let mut transfer;
@@ -220,11 +217,11 @@ impl TR069Session {
             self.counter,
             transfer.msg.kind()
         );
-        return utils::reply_xml(&transfer.msg);
+        utils::reply_xml(&transfer.msg)
     }
 
     async fn handle_cpe_request(
-        self: &mut Self,
+        &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
         //println!("Received from CPE");
@@ -265,7 +262,7 @@ impl TR069Session {
                     self.sn, self.id, self.counter, event.event_code
                 );
             }
-            self.cpe_handle_inform(&inform).await;
+            self.cpe_handle_inform(inform).await;
 
             println!(
                 "[SN:{}][SID:{}][{}] Send: Inform Response",
@@ -333,15 +330,15 @@ impl TR069Session {
         }
 
         // We may ask for a new Transfer
-        return self.cpe_check_transfers(req).await;
+        self.cpe_check_transfers(req).await
     }
 
     async fn handle_download(
-        self: &mut Self,
+        &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
-        let download = utils::req_path(&req, 1);
-        let path = utils::req_path(&req, 2);
+        let download = utils::req_path(req, 1);
+        let path = utils::req_path(req, 2);
         println!("Handle Download of {}", path);
         let acs = self.acs.read().await;
         let acsdir = acs.acsdir.clone();
@@ -356,7 +353,7 @@ impl TR069Session {
     }
 
     async fn authorization_error(
-        self: &mut Self,
+        &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Option<Result<Response<Full<Bytes>>>> {
         match req.headers().get("authorization") {
@@ -367,7 +364,7 @@ impl TR069Session {
                         return Some(Err(e.into()));
                     }
                 };
-                if wwwauth == &self.acs.read().await.basicauth {
+                if wwwauth == self.acs.read().await.basicauth {
                     None
                 } else {
                     println!(
@@ -394,7 +391,7 @@ impl TR069Session {
     }
 
     pub async fn handle(
-        self: &mut Self,
+        &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
         self.counter += 1;
@@ -403,7 +400,7 @@ impl TR069Session {
             return reply;
         }
 
-        let command = utils::req_path(&req, 1);
+        let command = utils::req_path(req, 1);
         let reply = match command.as_str() {
             "cwmpWeb" => self.handle_cpe_request(req).await,
             "download" => self.handle_download(req).await,

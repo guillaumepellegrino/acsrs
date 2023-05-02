@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct CPE {
     pub serial_number: String,
     pub url: String,
@@ -49,7 +50,7 @@ impl Acs {
     /**
      * Save ACS configuration to TOML file specified by path
      */
-    pub fn save(self: &Self, path: &std::path::Path) -> Result<()> {
+    pub fn save(&self, path: &std::path::Path) -> Result<()> {
         let mut file = std::fs::File::create(path)?;
         let string = toml::to_string(self)?;
         file.write_all(string.as_bytes())?;
