@@ -409,3 +409,13 @@ fn common_chars<'a>(lstr: &'a str, rstr: &'_ str) -> &'a str {
 
     &lstr[0..common]
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::common_chars;
+
+    #[test]
+    fn it_works() {
+        assert_eq!("fo", common_chars("fo1", "foo"));
+    }
+}
