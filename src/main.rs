@@ -24,7 +24,10 @@ mod utils;
 
 use crate::acs::*;
 use crate::mng::ManagementSession;
-use crate::session::*;
+use crate::session::{
+    SessionSecurity::{Insecure, Secure},
+    *,
+};
 use clap::{arg, command};
 use eyre::{eyre, Result, WrapErr};
 use hyper::server::conn::http1;
@@ -208,7 +211,7 @@ async fn main() -> Result<()> {
             let (stream, _) = cpe_listener.accept().await.unwrap();
             let acs = cpe_acs.clone();
             tokio::task::spawn(async move {
-                let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, false)));
+                let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, Insecure)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     async move {
@@ -233,15 +236,22 @@ async fn main() -> Result<()> {
             let acs = sec_acs.clone();
             let tls_acceptor = tls_acceptor.clone();
             tokio::task::spawn(async move {
-                let tls_stream = match tls_acceptor.accept(stream).await {
-                    Ok(value) => value,
+                let (tls_stream, peer_cert) = match tls_acceptor.accept(stream).await {
+                    Ok(value) => {
+                        let peer_cert = value.get_ref().peer_certificate().unwrap_or_default();
+                        (value, peer_cert)
+                    }
                     Err(err) => {
                         println!("tls accept error: {:?}", err);
                         return;
                     }
                 };
 
-                let session = Arc::new(RwLock::new(TR069Session::new(acs, sec_addr, true)));
+                let session = Arc::new(RwLock::new(TR069Session::new(
+                    acs,
+                    sec_addr,
+                    Secure(peer_cert),
+                )));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     async move {

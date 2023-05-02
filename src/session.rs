@@ -22,6 +22,7 @@ use bytes::Bytes;
 use eyre::Result;
 use http_body_util::Full;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
+use native_tls::Certificate;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -30,27 +31,32 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
 
+pub enum SessionSecurity {
+    Secure(Option<Certificate>),
+    Insecure,
+}
+
 pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,
     cpe: Option<Arc<RwLock<CPE>>>,
     observer: Option<mpsc::Sender<soap::Envelope>>,
     refcount: Option<Arc<()>>,
     srvaddr: SocketAddr,
-    secure: bool,
+    security: SessionSecurity,
     sn: String,
     id: String,
     counter: u32,
 }
 
 impl TR069Session {
-    pub fn new(acs: Arc<RwLock<Acs>>, srvaddr: SocketAddr, secure: bool) -> Self {
+    pub fn new(acs: Arc<RwLock<Acs>>, srvaddr: SocketAddr, security: SessionSecurity) -> Self {
         Self {
             acs,
             cpe: None,
             observer: None,
             refcount: None,
             srvaddr,
-            secure,
+            security,
             sn: String::new(),
             id: String::from("0"),
             counter: 0,
@@ -154,9 +160,9 @@ impl TR069Session {
     ) {
         if let Some(host) = req.headers().get("host") {
             let host = host.to_str().unwrap_or("");
-            let protocol = match self.secure {
-                true => "https",
-                false => "http",
+            let protocol = match self.security {
+                SessionSecurity::Secure(_) => "https",
+                _ => "http",
             };
             let baseurl = format!("{}://{}:{}", protocol, host, self.srvaddr.port());
             download.url.text = download.url.text.replace("${baseurl}", &baseurl);
