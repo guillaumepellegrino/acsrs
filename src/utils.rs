@@ -86,9 +86,10 @@ pub fn gencertificates(acsdir: &std::path::Path, common_name: &str) {
         .spawn()
         .unwrap();
 
-    let child_stdin = child.stdin.as_mut().unwrap();
-    child_stdin.write_all(bytes).unwrap();
-    drop(child_stdin);
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(bytes).unwrap();
+        drop(stdin);
+    }
 
     let status = child.wait().unwrap().success();
 
