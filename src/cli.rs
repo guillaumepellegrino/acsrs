@@ -87,7 +87,7 @@ impl Cli {
         })
     }
 
-    fn cmd2args(self: &Self) -> Vec<String> {
+    fn cmd2args(&self) -> Vec<String> {
         let mut args = Vec::<String>::new();
         let mut arg = String::new();
         let mut is_string = false;
@@ -125,12 +125,12 @@ impl Cli {
         args
     }
 
-    fn clear_line(self: &Self) -> Result<()> {
+    fn clear_line(&self) -> Result<()> {
         eprint!("{}{}", EscSeq::EraseInLineAll, EscSeq::HorizontalAbs(0));
         Ok(())
     }
 
-    fn reset(self: &mut Self) -> Result<()> {
+    fn reset(&mut self) -> Result<()> {
         self.cmd.clear();
         self.cursor = 0;
         self.history_idx = None;
@@ -138,7 +138,7 @@ impl Cli {
         Ok(())
     }
 
-    fn history_restore(self: &mut Self) -> Result<()> {
+    fn history_restore(&mut self) -> Result<()> {
         let word = match self.history_idx {
             Some(idx) => &self.history[idx],
             None => {
@@ -157,7 +157,7 @@ impl Cli {
         Ok(())
     }
 
-    async fn history_prev(self: &mut Self) -> Result<()> {
+    async fn history_prev(&mut self) -> Result<()> {
         self.history_idx = match self.history_idx {
             Some(idx) => match idx {
                 0 => Some(idx),
@@ -172,7 +172,7 @@ impl Cli {
         self.history_restore()
     }
 
-    async fn history_next(self: &mut Self) -> Result<()> {
+    async fn history_next(&mut self) -> Result<()> {
         self.history_idx = match self.history_idx {
             Some(idx) => {
                 if (idx + 1) < self.history.len() {
@@ -187,13 +187,13 @@ impl Cli {
         self.history_restore()
     }
 
-    async fn cursor_reset(self: &mut Self) -> Result<()> {
+    async fn cursor_reset(&mut self) -> Result<()> {
         eprint!("{}", EscSeq::Left(self.cursor));
         self.cursor = 0;
         Ok(())
     }
 
-    async fn cursor_left(self: &mut Self) -> Result<()> {
+    async fn cursor_left(&mut self) -> Result<()> {
         if self.cursor > 0 {
             eprint!("{}", EscSeq::Left(1));
             self.cursor -= 1;
@@ -201,7 +201,7 @@ impl Cli {
         Ok(())
     }
 
-    async fn cursor_right(self: &mut Self) -> Result<()> {
+    async fn cursor_right(&mut self) -> Result<()> {
         if self.cursor < self.cmd.len() {
             eprint!("{}", EscSeq::Right(1));
             self.cursor += 1;
@@ -209,7 +209,7 @@ impl Cli {
         Ok(())
     }
 
-    async fn escape(self: &mut Self) -> Result<()> {
+    async fn escape(&mut self) -> Result<()> {
         let c = self.reader.read_u8().await?;
         if c != 0x5B {
             return Ok(());
@@ -243,7 +243,7 @@ impl Cli {
         Ok(())
     }
 
-    async fn addchar(self: &mut Self, c: char) -> Result<()> {
+    async fn addchar(&mut self, c: char) -> Result<()> {
         if self.cursor < self.cmd.len() {
             let right = &self.cmd[self.cursor..];
             eprint!("{}{}{}", c, right, EscSeq::Left(right.len()));
@@ -256,8 +256,8 @@ impl Cli {
         Ok(())
     }
 
-    async fn backspace(self: &mut Self) -> Result<()> {
-        if self.cursor <= 0 {
+    async fn backspace(&mut self) -> Result<()> {
+        if self.cursor == 0 {
             return Ok(());
         }
 
@@ -269,7 +269,7 @@ impl Cli {
         Ok(())
     }
 
-    async fn suppr(self: &mut Self) -> Result<()> {
+    async fn suppr(&mut self) -> Result<()> {
         let c = self.reader.read_u8().await? as char;
         if c != '~' {
             eprintln!("Unexpect character {}", c);
@@ -283,8 +283,8 @@ impl Cli {
         Ok(())
     }
 
-    async fn eol(self: &mut Self) -> Result<Vec<String>> {
-        eprintln!("");
+    async fn eol(&mut self) -> Result<Vec<String>> {
+        eprintln!();
         let args = self.cmd2args();
         if !args[0].is_empty() {
             self.history.push(self.cmd.clone());
@@ -292,7 +292,7 @@ impl Cli {
         Ok(args)
     }
 
-    pub async fn getaction(self: &mut Self) -> Result<Action> {
+    pub async fn getaction(&mut self) -> Result<Action> {
         if self.do_reset {
             self.reset()?;
             self.do_reset = false;
@@ -328,7 +328,7 @@ impl Cli {
 
     /** Get the list of arguments inputed by User. */
     /*
-    pub async fn getargs(self: &mut Self) -> Result<Vec<String>> {
+    pub async fn getargs(&mut self) -> Result<Vec<String>> {
         loop {
             let action = self.getaction().await?;
             match action {
@@ -341,7 +341,7 @@ impl Cli {
     }
     */
 
-    pub fn autocomplete(self: &mut Self, words: &Vec<String>) -> Result<()> {
+    pub fn autocomplete(&mut self, words: &Vec<String>) -> Result<()> {
         if words.is_empty() {
             // Nothing to do
             return Ok(());
@@ -350,7 +350,7 @@ impl Cli {
         // Retrieve common word
         let mut common = words[0].as_str();
         for word in words {
-            common = common_chars(&word, common);
+            common = common_chars(word, common);
         }
 
         // Get completion word from common word
@@ -365,7 +365,7 @@ impl Cli {
             eprint!("{}", complete);
         } else {
             // Display all possibilites
-            eprintln!("");
+            eprintln!();
             for word in words {
                 eprint!("{} ", word);
             }
@@ -378,14 +378,14 @@ impl Cli {
         Ok(())
     }
 
-    pub fn setprompt(self: &mut Self, prompt: &str) -> &mut Self {
+    pub fn setprompt(&mut self, prompt: &str) -> &mut Self {
         self.prompt = prompt.into();
         self
     }
 }
 
 impl Drop for Cli {
-    fn drop(self: &mut Self) {
+    fn drop(&mut self) {
         let fd = 0;
         if let Err(e) = tcsetattr(fd, TCSANOW, &self.saved_termios) {
             eprintln!("Failed to restore terminal config: {:?}", e);
@@ -394,28 +394,28 @@ impl Drop for Cli {
 }
 
 fn common_chars<'a>(lstr: &'a str, rstr: &'_ str) -> &'a str {
-    let mut lindices = lstr.char_indices();
+    let lindices = lstr.char_indices();
     let mut rindices = rstr.char_indices();
     let mut common = 0;
 
-    loop {
-        match lindices.next() {
-            Some((_, lchar)) => match rindices.next() {
-                Some((_, rchar)) => {
-                    if lchar != rchar {
-                        break;
-                    }
-                    common += 1;
-                }
-                None => {
-                    break;
-                }
-            },
-            None => {
+    for (_, lchar) in lindices {
+        for (_, rchar) in rindices.by_ref() {
+            if lchar != rchar {
                 break;
             }
+            common += 1;
         }
     }
 
     &lstr[0..common]
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::common_chars;
+
+    #[test]
+    fn it_works() {
+        assert_eq!("fo", common_chars("fo1", "foo"));
+    }
 }

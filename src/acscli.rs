@@ -41,7 +41,7 @@ impl AcsCli {
         })
     }
 
-    fn update_prompt(self: &mut Self) {
+    fn update_prompt(&mut self) {
         let prompt = match &self.connectedto {
             Some(connectedto) => match self.directory.as_str() {
                 "" => format!("{}> ", connectedto),
@@ -52,7 +52,7 @@ impl AcsCli {
         self.cli.setprompt(&prompt);
     }
 
-    async fn connect(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+    async fn connect(&mut self, arg1: Option<&String>) -> Result<()> {
         let serial_number = arg1;
         let serial_number = serial_number.ok_or(eyre!("Missing Serial Number argument"))?;
         println!("Connect to {}", serial_number);
@@ -62,14 +62,14 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn disconnect(self: &mut Self) -> Result<()> {
+    async fn disconnect(&mut self) -> Result<()> {
         self.connectedto = None;
         self.directory = String::new();
         self.update_prompt();
         Ok(())
     }
 
-    async fn get(self: &mut Self, cmd: &str, arg1: Option<&String>) -> Result<()> {
+    async fn get(&mut self, cmd: &str, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
             None => {
@@ -89,7 +89,7 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn set(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+    async fn set(&mut self, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
             None => {
@@ -99,19 +99,14 @@ impl AcsCli {
         let relpath = arg1.ok_or(eyre!("Missing path argument"))?;
         let abspath = self.abspath(relpath);
         let url = format!("{}/spv/{}", self.host, serial_number);
-        let res = self
-            .client
-            .post(&url)
-            .body(String::from(abspath))
-            .send()
-            .await?;
+        let res = self.client.post(&url).body(abspath).send().await?;
         let content = res.text().await?;
         println!("{}", content);
 
         Ok(())
     }
 
-    async fn upgrade(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+    async fn upgrade(&mut self, arg1: Option<&String>) -> Result<()> {
         let serial_number = match &self.connectedto {
             Some(value) => value,
             None => {
@@ -133,11 +128,11 @@ impl AcsCli {
         Ok(())
     }
 
-    fn abspath(self: &Self, relpath: &str) -> String {
+    fn abspath(&self, relpath: &str) -> String {
         format!("{}{}", self.directory, relpath)
     }
 
-    fn relpath<'a>(self: &Self, abspath: &'a str) -> Option<&'a str> {
+    fn relpath<'a>(&self, abspath: &'a str) -> Option<&'a str> {
         abspath.strip_prefix(&self.directory)
     }
 
@@ -148,8 +143,8 @@ impl AcsCli {
         }
     }
 
-    async fn change_directory(self: &mut Self, arg1: Option<&String>) -> Result<()> {
-        if self.connectedto == None {
+    async fn change_directory(&mut self, arg1: Option<&String>) -> Result<()> {
+        if self.connectedto.is_none() {
             return self.connect(arg1).await;
         }
 
@@ -162,7 +157,7 @@ impl AcsCli {
             }
         };
 
-        let mut current: Vec<&str> = self.directory.split(".").collect();
+        let mut current: Vec<&str> = self.directory.split('.').collect();
         current.pop();
 
         match path.as_str() {
@@ -173,7 +168,7 @@ impl AcsCli {
                 current.pop();
             }
             _ => {
-                for dir in path.split(".") {
+                for dir in path.split('.') {
                     match dir {
                         "" => {}
                         _ => {
@@ -197,7 +192,7 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn list_cpes(self: &Self) -> Result<()> {
+    async fn list_cpes(&self) -> Result<()> {
         let url = format!("{}/list", self.host);
         let res = self.client.post(&url).send().await?;
         let content = res.text().await?;
@@ -205,27 +200,27 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn list_parameters(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+    async fn list_parameters(&mut self, arg1: Option<&String>) -> Result<()> {
         self.get("gpn", arg1).await
     }
 
-    async fn list(self: &mut Self, arg1: Option<&String>) -> Result<()> {
+    async fn list(&mut self, arg1: Option<&String>) -> Result<()> {
         match self.connectedto {
             Some(_) => self.list_parameters(arg1).await,
             None => self.list_cpes().await,
         }
     }
 
-    fn help(self: &Self) {
+    fn help(&self) {
         println!("acscli: interactive cli for ACSRS");
         println!("Global commands:");
         println!(" - help: Display this help");
         println!(" - exit: Exit this application");
-        println!("");
+        println!();
         println!("Availables command when disconnected:");
         println!(" - ls: List connected CPEs to this ACS");
         println!(" - cd|connect [SN] : Connect to CPE specified by this Serial Number");
-        println!("");
+        println!();
         println!("Availables command when connected to a CPE:");
         println!(" - disconnect :  Disconnect from the current CPE");
         println!(" - ls [path]: List Parameters under current object");
@@ -235,18 +230,18 @@ impl AcsCli {
         println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
     }
 
-    async fn parse_objpath(self: &mut Self, cmd: &str) -> Result<()> {
-        if let Some((objpath, _)) = cmd.split_once("?") {
+    async fn parse_objpath(&mut self, cmd: &str) -> Result<()> {
+        if let Some((objpath, _)) = cmd.split_once('?') {
             return self.get("gpv", Some(&String::from(objpath))).await;
         }
-        if cmd.contains("=") {
+        if cmd.contains('=') {
             return self.set(Some(&String::from(cmd))).await;
         }
 
-        return Err(eyre!("Unknown command '{}'", cmd));
+        Err(eyre!("Unknown command '{}'", cmd))
     }
 
-    async fn parse(self: &mut Self, args: &Vec<String>) -> Result<()> {
+    async fn parse(&mut self, args: &[String]) -> Result<()> {
         let cmd = args[0].as_str();
         let arg1 = args.get(1);
 
@@ -285,13 +280,14 @@ impl AcsCli {
         Ok(())
     }
 
-    fn cmdname_suggestions(self: &mut Self) -> Vec<String> {
-        let mut suggestions = Vec::<String>::new();
-        suggestions.push(String::from("help "));
-        suggestions.push(String::from("exit "));
-        suggestions.push(String::from("ls "));
-        suggestions.push(String::from("cd "));
-        if self.connectedto != None {
+    fn cmdname_suggestions(&mut self) -> Vec<String> {
+        let mut suggestions = vec![
+            String::from("help "),
+            String::from("exit "),
+            String::from("ls "),
+            String::from("cd "),
+        ];
+        if self.connectedto.is_some() {
             suggestions.push(String::from("disconnect "));
             suggestions.push(String::from("get "));
             suggestions.push(String::from("set "));
@@ -302,7 +298,7 @@ impl AcsCli {
         suggestions
     }
 
-    async fn connect_suggestions(self: &mut Self) -> Result<Vec<String>> {
+    async fn connect_suggestions(&mut self) -> Result<Vec<String>> {
         let mut suggestions = Vec::<String>::new();
         let url = format!("{}/snlist", self.host);
         let res = self.client.post(&url).send().await?;
@@ -313,7 +309,7 @@ impl AcsCli {
         Ok(suggestions)
     }
 
-    async fn getset_suggestions(self: &mut Self, args: &Vec<String>) -> Result<Vec<String>> {
+    async fn getset_suggestions(&mut self, args: &[String]) -> Result<Vec<String>> {
         let mut suggestions = Vec::<String>::new();
         let sn = match &self.connectedto {
             Some(sn) => sn,
@@ -322,12 +318,12 @@ impl AcsCli {
             }
         };
         let relpath = args.last().unwrap();
-        let path = self.abspath(&relpath);
+        let path = self.abspath(relpath);
         let objpath = Self::objpath(&path);
         let url = format!("{}/gpn/{}", self.host, sn);
         let res = self.client.post(&url).body(objpath).send().await?;
         let content = res.text().await?;
-        let content = match content.split_once("\n") {
+        let content = match content.split_once('\n') {
             Some((_, content)) => content,
             None => {
                 return Ok(suggestions);
@@ -348,23 +344,21 @@ impl AcsCli {
         Ok(suggestions)
     }
 
-    async fn autocomplete(self: &mut Self, args: &Vec<String>) -> Result<Vec<String>> {
+    async fn autocomplete(&mut self, args: &Vec<String>) -> Result<Vec<String>> {
         let mut suggestions;
 
         if args.len() <= 1 {
             suggestions = self.cmdname_suggestions();
-            match self.getset_suggestions(args).await {
-                Ok(mut objects) => {
-                    suggestions.append(&mut objects);
-                }
-                Err(_) => {}
+            if let Ok(mut objects) = self.getset_suggestions(args).await {
+                suggestions.append(&mut objects);
             };
         } else {
             let cmd = args[0].as_str();
             suggestions = match self.connectedto {
                 Some(_) => match cmd {
                     "get" | "set" | "cd" | "ls" => self.getset_suggestions(args).await?,
-                    "help" | "exit" | "disconnect" | "upgrade" | _ => Vec::<String>::new(),
+                    "help" | "exit" | "disconnect" | "upgrade" => Vec::<String>::new(),
+                    _ => Vec::<String>::new(),
                 },
                 None => match cmd {
                     "cd" | "connect" => self.connect_suggestions().await?,
@@ -385,7 +379,7 @@ impl AcsCli {
         Ok(list)
     }
 
-    async fn main(self: &mut Self) -> Result<()> {
+    async fn main(&mut self) -> Result<()> {
         println!("Welcome to acscli");
         println!("Type 'help' to list the available commands");
 

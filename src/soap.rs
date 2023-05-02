@@ -66,7 +66,7 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn contains(self: &Self, event_code: &str) -> bool {
+    pub fn contains(&self, event_code: &str) -> bool {
         for event in &self.event_struct {
             if event.event_code == event_code {
                 return true;
@@ -120,16 +120,11 @@ pub struct ParameterList {
 }
 
 impl ParameterList {
-    pub fn get(self: &Self, name: &str) -> Option<&ParameterValue> {
-        for pv in &self.parameter_values {
-            if pv.name == name {
-                return Some(pv);
-            }
-        }
-        return None;
+    pub fn get(&self, name: &str) -> Option<&ParameterValue> {
+        self.parameter_values.iter().find(|&pv| pv.name == name)
     }
 
-    pub fn get_value(self: &Self, name: &str) -> Option<&str> {
+    pub fn get_value(&self, name: &str) -> Option<&str> {
         match self.get(name) {
             Some(pv) => Some(pv.value.text.as_str()),
             None => None,
@@ -217,14 +212,14 @@ pub struct GetParameterValues {
 }
 
 impl GetParameterValues {
-    pub fn push(self: &mut Self, name: &str) -> &mut Self {
+    pub fn push(&mut self, name: &str) -> &mut Self {
         self.parameter_names.string.push(String::from(name));
         self.parameter_names.array_type =
             format!("xsd:string[{}]", self.parameter_names.string.len());
         self
     }
 
-    pub fn len(self: &Self) -> usize {
+    pub fn len(&self) -> usize {
         self.parameter_names.string.len()
     }
 }
@@ -246,7 +241,7 @@ pub struct SetParameterValues {
 }
 
 impl SetParameterValues {
-    pub fn push(self: &mut Self, pv: ParameterValue) -> &mut Self {
+    pub fn push(&mut self, pv: ParameterValue) -> &mut Self {
         self.parameter_list.parameter_values.push(pv);
         let len = self.parameter_list.parameter_values.len();
         self.parameter_list.array_type = format!("cwmp:ParameterValueStruct[{}]", len);
@@ -254,7 +249,7 @@ impl SetParameterValues {
     }
 
     #[allow(dead_code)]
-    pub fn len(self: &Self) -> usize {
+    pub fn len(&self) -> usize {
         self.parameter_list.parameter_values.len()
     }
 }
@@ -316,7 +311,7 @@ impl Download {
         download
     }
 
-    pub fn set_command_key(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_command_key(&mut self, value: &str) -> &mut Self {
         self.command_key = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -324,7 +319,7 @@ impl Download {
         self
     }
 
-    pub fn set_file_type(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_file_type(&mut self, value: &str) -> &mut Self {
         self.file_type = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -332,7 +327,7 @@ impl Download {
         self
     }
 
-    pub fn set_url(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_url(&mut self, value: &str) -> &mut Self {
         self.url = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -340,7 +335,7 @@ impl Download {
         self
     }
 
-    pub fn set_username(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_username(&mut self, value: &str) -> &mut Self {
         self.username = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -348,7 +343,7 @@ impl Download {
         self
     }
 
-    pub fn set_password(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_password(&mut self, value: &str) -> &mut Self {
         self.password = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -356,7 +351,7 @@ impl Download {
         self
     }
 
-    pub fn set_file_size(self: &mut Self, value: i64) -> &mut Self {
+    pub fn set_file_size(&mut self, value: i64) -> &mut Self {
         self.file_size = Value {
             xsi_type: String::from("xsd:long"),
             text: format!("{}", value),
@@ -364,7 +359,7 @@ impl Download {
         self
     }
 
-    pub fn set_target_file_name(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_target_file_name(&mut self, value: &str) -> &mut Self {
         self.target_file_name = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -372,7 +367,7 @@ impl Download {
         self
     }
 
-    pub fn set_delay_seconds(self: &mut Self, value: i32) -> &mut Self {
+    pub fn set_delay_seconds(&mut self, value: i32) -> &mut Self {
         self.delay_seconds = Value {
             xsi_type: String::from("xsd:int"),
             text: format!("{}", value),
@@ -380,7 +375,7 @@ impl Download {
         self
     }
 
-    pub fn set_success_url(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_success_url(&mut self, value: &str) -> &mut Self {
         self.success_url = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -388,7 +383,7 @@ impl Download {
         self
     }
 
-    pub fn set_failure_url(self: &mut Self, value: &str) -> &mut Self {
+    pub fn set_failure_url(&mut self, value: &str) -> &mut Self {
         self.failure_url = Value {
             xsi_type: String::from("xsd:string"),
             text: String::from(value),
@@ -627,7 +622,7 @@ impl Envelope {
         root
     }
 
-    pub fn kind(self: &Self) -> Kind {
+    pub fn kind(&self) -> Kind {
         if self.body.inform.first().is_some() {
             Kind::Inform
         } else if self.body.inform_response.first().is_some() {
@@ -663,19 +658,19 @@ impl Envelope {
         }
     }
 
-    pub fn add_inform_response(self: &mut Self) -> &mut InformResponse {
+    pub fn add_inform_response(&mut self) -> &mut InformResponse {
         self.body.inform_response.push(InformResponse::default());
         self.body.inform_response.first_mut().unwrap()
     }
 
-    pub fn add_transfer_complete_response(self: &mut Self) -> &mut TransferCompleteResponse {
+    pub fn add_transfer_complete_response(&mut self) -> &mut TransferCompleteResponse {
         self.body
             .transfer_complete_response
             .push(TransferCompleteResponse::default());
         self.body.transfer_complete_response.first_mut().unwrap()
     }
 
-    pub fn add_gpn(self: &mut Self, path: &str, next_level: bool) -> &mut GetParameterNames {
+    pub fn add_gpn(&mut self, path: &str, next_level: bool) -> &mut GetParameterNames {
         self.body.gpn.push(GetParameterNames {
             parameter_path: String::from(path),
             next_level: next_level as u8,
@@ -683,37 +678,37 @@ impl Envelope {
         self.body.gpn.first_mut().unwrap()
     }
 
-    pub fn add_gpv(self: &mut Self) -> &mut GetParameterValues {
+    pub fn add_gpv(&mut self) -> &mut GetParameterValues {
         self.body.gpv.push(GetParameterValues::default());
         self.body.gpv.first_mut().unwrap()
     }
 
-    pub fn add_spv(self: &mut Self, parameter_key: u64) -> &mut SetParameterValues {
+    pub fn add_spv(&mut self, parameter_key: u64) -> &mut SetParameterValues {
         let spv = SetParameterValues {
             parameter_list: ParameterList::default(),
-            parameter_key: parameter_key,
+            parameter_key,
         };
         self.body.spv.push(spv);
         self.body.spv.first_mut().unwrap()
     }
 
     #[allow(dead_code)]
-    pub fn add_download(self: &mut Self) -> &mut Download {
+    pub fn add_download(&mut self) -> &mut Download {
         self.body.download.push(Download::new());
         self.body.download.first_mut().unwrap()
     }
 
     #[allow(dead_code)]
-    pub fn add_reboot(self: &mut Self, command_key: &str) -> &mut Reboot {
+    pub fn add_reboot(&mut self, command_key: &str) -> &mut Reboot {
         self.body.reboot.push(Reboot::new(command_key));
         self.body.reboot.first_mut().unwrap()
     }
 
-    pub fn id(self: &Self) -> &str {
+    pub fn id(&self) -> &str {
         &self.header.id.text
     }
 
-    pub fn inform(self: &Self) -> Option<&Inform> {
+    pub fn inform(&self) -> Option<&Inform> {
         self.body.inform.first()
     }
 }
@@ -721,23 +716,23 @@ impl Envelope {
 impl std::fmt::Display for Envelope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(fault) = self.body.fault.first() {
-            return write!(
+            write!(
                 f,
                 "{} - {}",
                 fault.detail.cwmpfault.faultcode.text, fault.detail.cwmpfault.faultstring.text
-            );
+            )
         } else if let Some(response) = self.body.gpn_response.first() {
             for pn in &response.parameter_list.parameter_info {
                 if pn.writable == 1 {
-                    write!(f, "<r-> {}\n", pn.name)?;
+                    writeln!(f, "<r-> {}", pn.name)?;
                 } else {
-                    write!(f, "<rw> {}\n", pn.name)?;
+                    writeln!(f, "<rw> {}", pn.name)?;
                 }
             }
             return write!(f, "");
         } else if let Some(response) = self.body.gpv_response.first() {
             for pv in &response.parameter_list.parameter_values {
-                write!(f, "{}={}\n", pv.name, pv.value.text)?;
+                writeln!(f, "{}={}", pv.name, pv.value.text)?;
             }
             return write!(f, "");
         } else if let Some(response) = self.body.spv_response.first() {

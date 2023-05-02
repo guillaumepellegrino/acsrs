@@ -34,7 +34,7 @@ use native_tls::Identity;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio;
+
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
@@ -99,12 +99,12 @@ async fn main() -> Result<()> {
 
     // Get server hostname
     let mut hostname = acs.config.hostname.clone();
-    if hostname == "" {
+    if hostname.is_empty() {
         // hostname was not provided in configuration
         // Try to guess our public IP Address
         hostname = get_public_ipaddress()
             .await
-            .wrap_err_with(|| format!("Failed to get public IP Address"))?;
+            .wrap_err_with(|| "Failed to get public IP Address")?;
     }
 
     // Create automated certificates
@@ -199,9 +199,7 @@ async fn main() -> Result<()> {
         println!("Daemonize process !");
         let daemon = daemonize::Daemonize::new().pid_file(&pidfile);
 
-        daemon
-            .start()
-            .wrap_err_with(|| format!("Failed to daemonize"))?;
+        daemon.start().wrap_err_with(|| "Failed to daemonize")?;
     }
 
     // Unsecure server event loop
@@ -213,10 +211,10 @@ async fn main() -> Result<()> {
                 let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, false)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
-                    return async move {
+                    async move {
                         let mut session = session.write().await;
-                        return session.handle(&mut req).await;
-                    };
+                        session.handle(&mut req).await
+                    }
                 };
                 if let Err(err) = http1::Builder::new()
                     .serve_connection(stream, service_fn(service))
@@ -246,10 +244,10 @@ async fn main() -> Result<()> {
                 let session = Arc::new(RwLock::new(TR069Session::new(acs, sec_addr, true)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
-                    return async move {
+                    async move {
                         let mut session = session.write().await;
-                        return session.handle(&mut req).await;
-                    };
+                        session.handle(&mut req).await
+                    }
                 };
                 if let Err(err) = http1::Builder::new()
                     .serve_connection(tls_stream, service_fn(service))
@@ -270,10 +268,10 @@ async fn main() -> Result<()> {
                 let session = Arc::new(RwLock::new(ManagementSession::new(acs)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
-                    return async move {
+                    async move {
                         let mut session = session.write().await;
-                        return session.handle(&mut req).await;
-                    };
+                        session.handle(&mut req).await
+                    }
                 };
                 if let Err(err) = http1::Builder::new()
                     .serve_connection(stream, service_fn(service))
