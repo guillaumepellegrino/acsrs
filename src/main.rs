@@ -28,6 +28,7 @@ use crate::session::{
     SessionSecurity::{Insecure, Secure},
     *,
 };
+use crate::utils::get_cn;
 use clap::{arg, command};
 use eyre::{eyre, Result, WrapErr};
 use hyper::server::conn::http1;
@@ -247,11 +248,14 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                let session = Arc::new(RwLock::new(TR069Session::new(
+                let session = TR069Session::new(
                     acs,
                     sec_addr,
-                    Secure(peer_cert),
-                )));
+                    Secure {
+                        cn: get_cn(peer_cert),
+                    },
+                );
+                let session = Arc::new(RwLock::new(session));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     async move {

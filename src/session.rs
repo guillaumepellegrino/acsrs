@@ -22,7 +22,6 @@ use bytes::Bytes;
 use eyre::Result;
 use http_body_util::Full;
 use hyper::{body::Incoming as IncomingBody, Request, Response};
-use native_tls::Certificate;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -31,11 +30,13 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
 
+#[derive(Debug)]
 pub enum SessionSecurity {
-    Secure(Option<Certificate>),
+    Secure { cn: Option<String> },
     Insecure,
 }
 
+#[derive(Debug)]
 pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,
     cpe: Option<Arc<RwLock<CPE>>>,
@@ -160,8 +161,8 @@ impl TR069Session {
     ) {
         if let Some(host) = req.headers().get("host") {
             let host = host.to_str().unwrap_or("");
-            let protocol = match self.security {
-                SessionSecurity::Secure(_) => "https",
+            let protocol = match &self.security {
+                SessionSecurity::Secure { cn: _ } => "https",
                 _ => "http",
             };
             let baseurl = format!("{}://{}:{}", protocol, host, self.srvaddr.port());
