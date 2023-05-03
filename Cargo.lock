@@ -28,6 +28,7 @@ dependencies = [
  "termios",
  "tokio",
  "tokio-native-tls",
+ "tokiocli",
  "toml",
 ]
 
@@ -1306,6 +1307,17 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "tokiocli"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aac1c9527457508aa9f50593658d05abd25f383ff73da07a64b4d2a58590c353"
+dependencies = [
+ "eyre",
+ "termios",
+ "tokio",
 ]
 
 [[package]]
