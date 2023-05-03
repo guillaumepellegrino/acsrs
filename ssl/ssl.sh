@@ -79,11 +79,7 @@ updateall()
 {
     [[ -f ca-key.pem ]] || genrootca  
     [[ -f key.pem ]] || genprivkey
-    if [[ -f cert.pem ]]; then
-        (openssl x509 -in cert.pem -checkhost "$CN" -noout | grep "does match certificate") || gencert
-    else
-        gencert
-    fi
+    gencert
     verifycert
 }
 
