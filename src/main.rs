@@ -239,11 +239,21 @@ async fn main() -> Result<()> {
             tokio::task::spawn(async move {
                 let (tls_stream, peer_cert) = match tls_acceptor.accept(stream).await {
                     Ok(value) => {
-                        let peer_cert = value.get_ref().peer_certificate().unwrap_or_default();
+                        let peer_cert = match value.get_ref().peer_certificate() {
+                            Ok(Some(cert)) => Some(cert),
+                            Ok(None) => {
+                                eprintln!("Did not find a peer certificate");
+                                None
+                            }
+                            Err(err) => {
+                                eprintln!("Failed to get peer cert: {err}");
+                                None
+                            }
+                        };
                         (value, peer_cert)
                     }
                     Err(err) => {
-                        println!("tls accept error: {:?}", err);
+                        eprintln!("tls accept error: {:?}", err);
                         return;
                     }
                 };
@@ -255,6 +265,7 @@ async fn main() -> Result<()> {
                         cn: get_cn(peer_cert),
                     },
                 );
+                println!("{:#?}", session);
                 let session = Arc::new(RwLock::new(session));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
