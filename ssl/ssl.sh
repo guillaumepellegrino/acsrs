@@ -33,6 +33,15 @@ basicConstraints = CA:true
 EOM
 }
 
+gen_openssl_ext()
+{
+    cat > openssl.ext <<- EOM
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+EOM
+}
+
 genrootca()
 {
     echo "Generate root CA"
@@ -89,6 +98,23 @@ verifycert()
     openssl verify -CAfile ca.pem cert.pem
 }
 
+genpeercert()
+{
+    mkdir -p "$CN"
+
+    # Create openssl.ext
+    gen_openssl_ext
+
+    # Generate a 4096 bits Private Key using RSA
+    openssl genrsa -out "$CN/key.pem" 4096
+
+    # Generate Certificate Signing Request
+    openssl req -new -key "$CN/key.pem" -out "$CN/cert.csr" -subj "/CN=$CN"
+
+    # Sign Certificate with root CA.
+    openssl x509 -req -in "$CN/cert.csr" -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out "$CN/cert.pem" -days $((10*365)) -sha256 -extfile openssl.ext
+}
+
 clean()
 {
     rm -f *.pem *.p12 *.0
@@ -112,6 +138,9 @@ case "$1" in
         gencert
         verifycert
         ;;
+    genpeercert)
+        genpeercert
+        ;;
     verify)
         verifycert
         ;;
@@ -120,6 +149,6 @@ case "$1" in
         ;;
     *)
         echo "Unknown command '$1'"
-        echo "$0 (all|genrootca|gencert|verify|clean)"
+        echo "$0 (all|genrootca|gencert|genpeercert|verify|clean)"
         ;;
 esac

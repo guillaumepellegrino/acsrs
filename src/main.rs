@@ -42,13 +42,22 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-/// Return the PUBLIC IP Address of this machine
-/// by querying http://ifconfig.me.
+/// Return the PUBLIC_IP environmemnt variable,
+/// or the public ip address of this machine by querying http://ifconfig.me.
 async fn get_public_ipaddress() -> Result<String> {
-    let server = "http://ifconfig.me";
-    let response = reqwest::get(server).await?;
-    let ipaddress = response.text().await?;
-    Ok(ipaddress)
+    match std::env::var("PUBLIC_IP") {
+        Ok(ip_address) => {
+            println!("Using {ip_address} as public ip");
+            Ok(ip_address)
+        }
+        Err(_) => {
+            println!("Did not find PUBLIC_IP in environemnt variables");
+            println!("Using http://ifconfig.me to find approximate public ip");
+            let server = "http://ifconfig.me";
+            let response = reqwest::get(server).await?;
+            Ok(response.text().await?)
+        }
+    }
 }
 
 /// Return the path to $HOME directory
