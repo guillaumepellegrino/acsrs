@@ -184,14 +184,14 @@ pub struct ParameterInfoStruct {
 pub struct ParameterListInfo {
     #[serde(rename = "ParameterInfoStruct")]
     #[serde(default)]
-    parameter_info: Vec<ParameterInfoStruct>,
+    pub parameter_info: Vec<ParameterInfoStruct>,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct GetParameterNamesResponse {
     #[serde(rename = "ParameterList")]
     #[serde(default)]
-    parameter_list: ParameterListInfo,
+    pub parameter_list: ParameterListInfo,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
