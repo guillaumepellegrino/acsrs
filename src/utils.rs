@@ -20,6 +20,8 @@ use bytes::Bytes;
 use eyre::Result;
 use http_body_util::{BodyExt, Full};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
+use native_tls::Certificate;
+use openssl::x509::X509;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::io::Write;
 
@@ -94,4 +96,26 @@ pub fn gencertificates(acsdir: &std::path::Path, common_name: &str) {
     let status = child.wait().unwrap().success();
 
     println!("status: {}", status);
+}
+
+pub fn get_cn(cert: Option<Certificate>) -> Option<String> {
+    cert.and_then(
+        |cert| match X509::from_der(&cert.to_der().unwrap_or_default()) {
+            Ok(x509) => {
+                println!("{:#?}", x509);
+                Some(x509)
+            }
+            Err(err) => {
+                eprintln!("Failed to parse certificate as x509: {err}");
+                None
+            }
+        },
+    )
+    .and_then(|x509| {
+        x509.subject_name()
+            .entries()
+            .next()
+            .and_then(|name_entry| name_entry.data().as_utf8().ok())
+            .map(|string| string.to_string())
+    })
 }

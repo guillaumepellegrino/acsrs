@@ -25,7 +25,11 @@ mod utils;
 
 use crate::acs::*;
 use crate::mng::ManagementSession;
-use crate::session::*;
+use crate::session::{
+    SessionSecurity::{Insecure, Secure},
+    *,
+};
+use crate::utils::get_cn;
 use clap::{arg, command};
 use eyre::{eyre, Result, WrapErr};
 use hyper::server::conn::http1;
@@ -39,13 +43,22 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-/// Return the PUBLIC IP Address of this machine
-/// by querying http://ifconfig.me.
+/// Return the PUBLIC_IP environmemnt variable,
+/// or the public ip address of this machine by querying http://ifconfig.me.
 async fn get_public_ipaddress() -> Result<String> {
-    let server = "http://ifconfig.me";
-    let response = reqwest::get(server).await?;
-    let ipaddress = response.text().await?;
-    Ok(ipaddress)
+    match std::env::var("PUBLIC_IP") {
+        Ok(ip_address) => {
+            println!("Using {ip_address} as public ip");
+            Ok(ip_address)
+        }
+        Err(_) => {
+            println!("Did not find PUBLIC_IP in environemnt variables");
+            println!("Using http://ifconfig.me to find approximate public ip");
+            let server = "http://ifconfig.me";
+            let response = reqwest::get(server).await?;
+            Ok(response.text().await?)
+        }
+    }
 }
 
 /// Return the path to $HOME directory
@@ -209,7 +222,7 @@ async fn main() -> Result<()> {
             let (stream, _) = cpe_listener.accept().await.unwrap();
             let acs = cpe_acs.clone();
             tokio::task::spawn(async move {
-                let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, false)));
+                let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, Insecure)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     async move {
@@ -234,15 +247,36 @@ async fn main() -> Result<()> {
             let acs = sec_acs.clone();
             let tls_acceptor = tls_acceptor.clone();
             tokio::task::spawn(async move {
-                let tls_stream = match tls_acceptor.accept(stream).await {
-                    Ok(value) => value,
+                let (tls_stream, peer_cert) = match tls_acceptor.accept(stream).await {
+                    Ok(value) => {
+                        let peer_cert = match value.get_ref().peer_certificate() {
+                            Ok(Some(cert)) => Some(cert),
+                            Ok(None) => {
+                                eprintln!("Did not find a peer certificate");
+                                None
+                            }
+                            Err(err) => {
+                                eprintln!("Failed to get peer cert: {err}");
+                                None
+                            }
+                        };
+                        (value, peer_cert)
+                    }
                     Err(err) => {
-                        println!("tls accept error: {:?}", err);
+                        eprintln!("tls accept error: {:?}", err);
                         return;
                     }
                 };
 
-                let session = Arc::new(RwLock::new(TR069Session::new(acs, sec_addr, true)));
+                let session = TR069Session::new(
+                    acs,
+                    sec_addr,
+                    Secure {
+                        cn: get_cn(peer_cert),
+                    },
+                );
+                println!("{:#?}", session);
+                let session = Arc::new(RwLock::new(session));
                 let service = |mut req: Request<hyper::body::Incoming>| {
                     let session = session.clone();
                     async move {
