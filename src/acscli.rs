@@ -16,16 +16,63 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+mod api;
 use eyre::{eyre, Result};
+use regex::Regex;
+use std::fmt;
 use tokiocli::{Action, Cli};
 
 struct AcsCli {
     cli: Cli,
     exit: bool,
-    host: String,
+    url: String,
     client: reqwest::Client,
     connectedto: Option<String>,
     directory: String,
+}
+
+impl fmt::Display for api::Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            api::Response::GetParameterNames(response) => {
+                for param in response {
+                    let rw = match param.writable {
+                        true => "rw",
+                        false => "r-",
+                    };
+                    writeln!(f, "{} {}", rw, param.name)?;
+                }
+            }
+            api::Response::GetParameterValues(response) => {
+                for param in response {
+                    let pretty_type = match param.r#type.strip_prefix("xsd:") {
+                        Some(value) => value,
+                        None => &param.r#type,
+                    };
+                    writeln!(f, "{}<{}>={}", param.name, pretty_type, param.value)?;
+                }
+            }
+            api::Response::SetParameterValues(response) => {
+                write!(f, "SetParameterValues Status: {}", response)?;
+            }
+            api::Response::Upgrade(response) => {
+                write!(f, "Upgrade Status: {}", response.status)?;
+            }
+            api::Response::List(cpes) => {
+                for cpe in cpes {
+                    writeln!(
+                        f,
+                        "{} - {} - {} - {}",
+                        cpe.sn, cpe.url, cpe.username, cpe.password
+                    )?;
+                }
+            }
+            api::Response::Error(response) => {
+                write!(f, "Error: {:?}", response.description)?;
+            }
+        }
+        write!(f, "")
+    }
 }
 
 impl AcsCli {
@@ -33,11 +80,26 @@ impl AcsCli {
         Ok(Self {
             cli: Cli::new()?,
             exit: false,
-            host: String::from("http://127.0.0.1:8000"),
+            url: String::from("http://127.0.0.1:8000/api"),
             client: reqwest::Client::new(),
             connectedto: None,
             directory: String::new(),
         })
+    }
+
+    async fn sendrequest(&self, command: api::Command) -> Result<api::Response> {
+        let mut request = api::Request {
+            serial_number: String::new(),
+            command,
+        };
+        if let Some(serial_number) = &self.connectedto {
+            request.serial_number = serial_number.clone();
+        }
+        let s = serde_json::to_string(&request)?;
+        let response = self.client.post(&self.url).body(s).send().await?;
+        let text = response.text().await?;
+        let result: api::Response = serde_json::from_str(&text)?;
+        Ok(result)
     }
 
     fn update_prompt(&mut self) {
@@ -68,67 +130,99 @@ impl AcsCli {
         Ok(())
     }
 
-    async fn get(&mut self, cmd: &str, arg1: Option<&String>) -> Result<()> {
-        let serial_number = match &self.connectedto {
-            Some(value) => value,
-            None => {
-                return Err(eyre!("Not connected !"));
+    async fn gpv(&mut self, arg1: Option<&String>) -> Result<()> {
+        let mut gpv = Vec::<api::GetParameterValues>::new();
+        if let Some(arg1) = arg1 {
+            for param in arg1.split(';') {
+                gpv.push(api::GetParameterValues {
+                    name: self.abspath(param),
+                });
             }
-        };
-        let relpath = match arg1 {
-            Some(relpath) => relpath.as_str(),
-            None => "",
-        };
-        let abspath = self.abspath(relpath);
-        let url = format!("{}/{}/{}", self.host, cmd, serial_number);
-        let res = self.client.post(&url).body(abspath).send().await?;
-        let content = res.text().await?;
-        println!("{}", content);
+        } else {
+            gpv.push(api::GetParameterValues {
+                name: self.abspath(""),
+            });
+        }
 
+        let response = self
+            .sendrequest(api::Command::GetParameterValues(gpv))
+            .await?;
+        println!("{}", response);
         Ok(())
     }
 
-    async fn set(&mut self, arg1: Option<&String>) -> Result<()> {
-        let serial_number = match &self.connectedto {
-            Some(value) => value,
+    async fn spv(&mut self, arg1: Option<&String>) -> Result<()> {
+        let mut spv = Vec::<api::SetParameterValues>::new();
+        let regex_key_type_value = Regex::new(r"(.+)<(.+)>=(.+)")?;
+        let regex_key_value = Regex::new(r"(.+)=(.+)")?;
+        let arg1 = match arg1 {
+            Some(arg1) => arg1,
             None => {
-                return Err(eyre!("Not connected !"));
+                return Err(eyre!("Missing argument"));
             }
         };
-        let relpath = arg1.ok_or(eyre!("Missing path argument"))?;
-        let abspath = self.abspath(relpath);
-        let url = format!("{}/spv/{}", self.host, serial_number);
-        let res = self.client.post(&url).body(abspath).send().await?;
-        let content = res.text().await?;
-        println!("{}", content);
+        for param in arg1.split(';') {
+            match regex_key_type_value.captures(param) {
+                Some(captures) => {
+                    let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
+                    let base_type = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
+                    let xsd_type = format!("xsd:{}", base_type);
+                    let value = captures.get(3).ok_or(eyre!("invalid expression"))?.as_str();
 
+                    spv.push(api::SetParameterValues {
+                        name: self.abspath(key),
+                        r#type: xsd_type,
+                        r#value: value.to_string(),
+                    });
+                }
+                None => {
+                    let captures = regex_key_value
+                        .captures(param)
+                        .ok_or(eyre!("invalid expression"))?;
+
+                    let key = captures.get(1).ok_or(eyre!("invalid expression"))?.as_str();
+                    let value = captures.get(2).ok_or(eyre!("invalid expression"))?.as_str();
+
+                    spv.push(api::SetParameterValues {
+                        name: self.abspath(key),
+                        r#type: String::new(),
+                        r#value: value.to_string(),
+                    });
+                }
+            }
+        }
+
+        let response = self
+            .sendrequest(api::Command::SetParameterValues(spv))
+            .await?;
+        println!("{}", response);
         Ok(())
     }
 
     async fn upgrade(&mut self, arg1: Option<&String>) -> Result<()> {
-        let serial_number = match &self.connectedto {
-            Some(value) => value,
-            None => {
-                return Err(eyre!("Not connected !"));
-            }
+        if self.connectedto.is_none() {
+            return Err(eyre!("Not connected !"));
+        }
+        let file_name = arg1;
+        let file_name = file_name.ok_or(eyre!("Missing file_name argument"))?;
+        let upgrade = api::Upgrade {
+            file_name: file_name.clone(),
         };
-        let firmware = arg1;
-        let firmware = firmware.ok_or(eyre!("Missing firmware argument"))?;
-        let url = format!("{}/upgrade/{}", self.host, serial_number);
-        let res = self
-            .client
-            .post(&url)
-            .body(format!("file_name={}", firmware))
-            .send()
-            .await?;
-        let content = res.text().await?;
-        println!("{}", content);
-
+        let response = self.sendrequest(api::Command::Upgrade(upgrade)).await?;
+        println!("{}", response);
         Ok(())
     }
 
     fn abspath(&self, relpath: &str) -> String {
         format!("{}{}", self.directory, relpath)
+    }
+
+    fn arg2path(&self, arg: Option<&String>) -> String {
+        let relpath = match arg {
+            Some(relpath) => relpath.as_str(),
+            None => "",
+        };
+        self.abspath(relpath)
     }
 
     fn relpath<'a>(&self, abspath: &'a str) -> Option<&'a str> {
@@ -192,15 +286,21 @@ impl AcsCli {
     }
 
     async fn list_cpes(&self) -> Result<()> {
-        let url = format!("{}/list", self.host);
-        let res = self.client.post(&url).send().await?;
-        let content = res.text().await?;
-        println!("{}", content);
+        let response = self.sendrequest(api::Command::List).await?;
+        println!("{}", response);
         Ok(())
     }
 
     async fn list_parameters(&mut self, arg1: Option<&String>) -> Result<()> {
-        self.get("gpn", arg1).await
+        let gpn = api::GetParameterNames {
+            name: self.arg2path(arg1),
+            next_level: true,
+        };
+        let response = self
+            .sendrequest(api::Command::GetParameterNames(gpn))
+            .await?;
+        println!("{}", response);
+        Ok(())
     }
 
     async fn list(&mut self, arg1: Option<&String>) -> Result<()> {
@@ -231,10 +331,10 @@ impl AcsCli {
 
     async fn parse_objpath(&mut self, cmd: &str) -> Result<()> {
         if let Some((objpath, _)) = cmd.split_once('?') {
-            return self.get("gpv", Some(&String::from(objpath))).await;
+            return self.gpv(Some(&String::from(objpath))).await;
         }
         if cmd.contains('=') {
-            return self.set(Some(&String::from(cmd))).await;
+            return self.spv(Some(&String::from(cmd))).await;
         }
 
         Err(eyre!("Unknown command '{}'", cmd))
@@ -252,10 +352,10 @@ impl AcsCli {
                 self.disconnect().await?;
             }
             "get" | "?" => {
-                self.get("gpv", arg1).await?;
+                self.gpv(arg1).await?;
             }
             "set" => {
-                self.set(arg1).await?;
+                self.spv(arg1).await?;
             }
             "ls" => {
                 self.list(arg1).await?;
@@ -299,47 +399,38 @@ impl AcsCli {
 
     async fn connect_suggestions(&mut self) -> Result<Vec<String>> {
         let mut suggestions = Vec::<String>::new();
-        let url = format!("{}/snlist", self.host);
-        let res = self.client.post(&url).send().await?;
-        let content = res.text().await?;
-        for line in content.lines() {
-            suggestions.push(String::from(line));
+        let response = self.sendrequest(api::Command::List).await?;
+
+        if let api::Response::List(list) = response {
+            for cpe in list {
+                suggestions.push(cpe.sn.clone());
+            }
         }
         Ok(suggestions)
     }
 
     async fn getset_suggestions(&mut self, args: &[String]) -> Result<Vec<String>> {
         let mut suggestions = Vec::<String>::new();
-        let sn = match &self.connectedto {
-            Some(sn) => sn,
-            None => {
-                return Ok(suggestions);
-            }
-        };
+        if self.connectedto.is_none() {
+            return Ok(suggestions);
+        }
         let relpath = args.last().unwrap();
         let path = self.abspath(relpath);
         let objpath = Self::objpath(&path);
-        let url = format!("{}/gpn/{}", self.host, sn);
-        let res = self.client.post(&url).body(objpath).send().await?;
-        let content = res.text().await?;
-        let content = match content.split_once('\n') {
-            Some((_, content)) => content,
-            None => {
-                return Ok(suggestions);
-            }
+        let gpn = api::GetParameterNames {
+            name: objpath,
+            next_level: true,
         };
-        for line in content.lines() {
-            let path = match line.get(5..) {
-                Some(path) => path,
-                None => {
-                    continue;
+        let response = self
+            .sendrequest(api::Command::GetParameterNames(gpn))
+            .await?;
+        if let api::Response::GetParameterNames(list) = response {
+            for param in list {
+                if let Some(relpath) = self.relpath(&param.name) {
+                    suggestions.push(String::from(relpath));
                 }
-            };
-            if let Some(relpath) = self.relpath(path) {
-                suggestions.push(String::from(relpath));
             }
         }
-
         Ok(suggestions)
     }
 

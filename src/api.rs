@@ -4,6 +4,7 @@ use serde::Serialize;
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct GetParameterNames {
     pub name: String,
+    #[serde(default)]
     pub next_level: bool,
 }
 
@@ -15,7 +16,6 @@ pub struct GetParameterNamesResponse {
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct GetParameterValues {
-    pub r#type: String,
     pub name: String,
 }
 
@@ -34,11 +34,6 @@ pub struct SetParameterValues {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
-pub struct SetParameterValuesResponse {
-    pub status: bool,
-}
-
-#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct Upgrade {
     pub file_name: String,
 }
@@ -49,7 +44,17 @@ pub struct UpgradeResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+#[allow(clippy::upper_case_acronyms)]
+pub struct CPE {
+    pub sn: String,
+    pub url: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct ErrorResponse {
+    pub status: u16,
     pub description: String,
 }
 
@@ -59,7 +64,7 @@ pub enum Command {
     GetParameterValues(Vec<GetParameterValues>),
     SetParameterValues(Vec<SetParameterValues>),
     Upgrade(Upgrade),
-    List(),
+    List,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -73,7 +78,18 @@ pub struct Request {
 pub enum Response {
     GetParameterNames(Vec<GetParameterNamesResponse>),
     GetParameterValues(Vec<GetParameterValuesResponse>),
-    SetParameterValues(SetParameterValuesResponse),
+    SetParameterValues(bool),
     Upgrade(UpgradeResponse),
+    List(Vec<CPE>),
     Error(ErrorResponse),
+}
+
+impl Response {
+    #[allow(dead_code)]
+    pub fn error(status: u16, description: &str) -> Self {
+        Response::Error(ErrorResponse {
+            status,
+            description: String::from(description),
+        })
+    }
 }
