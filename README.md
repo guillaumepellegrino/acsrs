@@ -56,24 +56,6 @@ acscli is an interactive UNIX cli for ACSRS
  - upgrade [filename] : Upgrade CPE to provided firmware
 
 
-# Usage with curl
-## List managed CPEs by this ACS
-```
-curl 127.0.0.1:8000/list
-```
-
-## Send a GetParameterValue to the specified CPE
-```
-curl 127.0.0.1:8000/gpv/{CPE_SERIAL_NUMBER} -d Device.ManagementServer.
-```
-
-## Send a SetParameterValue to the specified CPE
-```
-curl 127.0.0.1:8000/spv/{CPE_SERIAL_NUMBER} -d "Device.WiFi.NeighboringWiFiDiagnostic.DiagnosticsState<string>=Requested"
-```
-
-## Send a GetParameterValue to the specified CPE, requesting multiple objects
-```
-curl 127.0.0.1:8000/gpv/{CPE_SERIAL_NUMER} -d Device.ManagementServer.;Device.Time.
-```
-
+# ACS Management APIs
+ACS Server is manageable by default on http://127.0.0.1:8000/api url with JSON APIs.
+JSON APIs are defined in https://github.com/guillaumepellegrino/acsrs/blob/master/src/api.rs
