@@ -85,6 +85,7 @@ pub enum Response {
 }
 
 impl Response {
+    #[allow(dead_code)]
     pub fn error(status: u16, description: &str) -> Self {
         Response::Error(ErrorResponse {
             status,

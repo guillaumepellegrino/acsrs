@@ -127,7 +127,7 @@ impl ManagementSession {
             }
             api::Response::GetParameterValues(list)
         } else if let Some(response) = soap.body.spv_response.first() {
-            api::Response::SetParameterValues(response.status != 0)
+            api::Response::SetParameterValues(response.status == 0)
         } else {
             api::Response::error(400, "Unknown response from CPE")
         }
@@ -476,8 +476,6 @@ impl ManagementSession {
                 );
             }
         };
-
-        println!("request={:?}\n", request);
 
         match &request.command {
             api::Command::GetParameterNames(gpn) => {
