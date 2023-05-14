@@ -36,8 +36,34 @@ use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use log::*;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
+
+fn log_to_stderr() {
+    let logger = simplelog::TermLogger::new(
+        simplelog::LevelFilter::Trace,
+        simplelog::Config::default(),
+        simplelog::TerminalMode::Stderr,
+        simplelog::ColorChoice::Auto,
+    );
+    log::set_boxed_logger(Box::new(logger))
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .expect("Failed to set simplelog logger");
+}
+
+fn log_to_syslog() {
+    let formatter = syslog::Formatter3164 {
+        facility: syslog::Facility::LOG_USER,
+        hostname: None,
+        process: "acsrs".into(),
+        pid: 0,
+    };
+    let logger = syslog::unix(formatter).expect("Impossible to connect to syslog");
+    log::set_boxed_logger(Box::new(syslog::BasicLogger::new(logger)))
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .expect("Failed to set syslog logger");
+}
 
 /// Return the PUBLIC IP Address of this machine
 /// by querying http://ifconfig.me.
@@ -61,6 +87,15 @@ async fn main() -> Result<()> {
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
         .arg(arg!(-d --daemon "Run as a daemon"))
         .get_matches();
+
+    if matches.get_flag("daemon") {
+        println!("Logging to syslog");
+        log_to_syslog();
+    } else {
+        log_to_stderr();
+    }
+
+    warn!("ACSRS initialize");
 
     let acsdir = match matches.get_one::<std::path::PathBuf>("config") {
         Some(value) => value.clone(),
@@ -197,10 +232,9 @@ async fn main() -> Result<()> {
 
     // Daemonize process if demanded
     if matches.get_flag("daemon") {
-        println!("Daemonize process !");
         let daemon = daemonize::Daemonize::new().pid_file(&pidfile);
-
         daemon.start().wrap_err_with(|| "Failed to daemonize")?;
+        warn!("ACSRS is daemonized");
     }
 
     // Unsecure server event loop
