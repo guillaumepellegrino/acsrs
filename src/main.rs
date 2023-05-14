@@ -48,7 +48,6 @@ fn log_to_stderr() {
         simplelog::ColorChoice::Auto,
     );
     log::set_boxed_logger(Box::new(logger))
-        .map(|()| log::set_max_level(LevelFilter::Info))
         .expect("Failed to set simplelog logger");
 }
 
@@ -61,7 +60,6 @@ fn log_to_syslog() {
     };
     let logger = syslog::unix(formatter).expect("Impossible to connect to syslog");
     log::set_boxed_logger(Box::new(syslog::BasicLogger::new(logger)))
-        .map(|()| log::set_max_level(LevelFilter::Info))
         .expect("Failed to set syslog logger");
 }
 
@@ -86,16 +84,24 @@ async fn main() -> Result<()> {
         .about("Auto Configuration Server")
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
         .arg(arg!(-d --daemon "Run as a daemon"))
+        .arg(arg!(-v --verbose "Show information logs"))
         .get_matches();
 
     if matches.get_flag("daemon") {
-        warn!("Logging to syslog");
+        println!("Logging to syslog");
         log_to_syslog();
     } else {
         log_to_stderr();
     }
+    if matches.get_flag("verbose") {
+        log::set_max_level(LevelFilter::Info)
+    }
+    else {
+        log::set_max_level(LevelFilter::Warn)
+    }
 
     warn!("ACSRS initialize");
+    info!("Info logs are enabled");
 
     let acsdir = match matches.get_one::<std::path::PathBuf>("config") {
         Some(value) => value.clone(),
