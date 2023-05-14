@@ -753,7 +753,6 @@ fn test_bootstrap() {
         .unwrap();
 
     let bootstrap: Envelope = quick_xml::de::from_str(&xml).unwrap();
-    info!("bootstrap = {:?}", bootstrap);
 
     assert_eq!(bootstrap.id(), "515");
     let inform = bootstrap.inform().unwrap();
@@ -791,7 +790,6 @@ fn test_transfer_complete() {
         .unwrap();
 
     let transfer_complete: Envelope = quick_xml::de::from_str(&xml).unwrap();
-    info!("transfer_complete = {:?}", transfer_complete);
     assert_eq!(transfer_complete.id(), "test1234");
 
     let body = &transfer_complete.body.transfer_complete[0];
