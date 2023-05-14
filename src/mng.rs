@@ -27,6 +27,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use log::*;
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
 
@@ -301,7 +302,7 @@ impl ManagementSession {
         content: &str,
     ) -> Result<Response<Full<Bytes>>> {
         let s = format!("Unknown request: {}\n", req.uri());
-        println!("{}", content);
+        info!("{}", content);
         utils::reply(404, s)
     }
 

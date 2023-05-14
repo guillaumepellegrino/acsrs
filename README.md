@@ -13,8 +13,6 @@ Supported features are:
 Some limitations are:
 - There are no notifications mechanism implemented.
 - It may not be fully compliant with TR-069 standard.
-- syslog support not yet implemented.
-- Logging is quite messy.
 
 # Install ACSRS
 The application can be installed directly from cargo

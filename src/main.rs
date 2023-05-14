@@ -36,8 +36,31 @@ use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use log::*;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
+
+fn log_to_stderr() {
+    let logger = simplelog::TermLogger::new(
+        simplelog::LevelFilter::Trace,
+        simplelog::Config::default(),
+        simplelog::TerminalMode::Stderr,
+        simplelog::ColorChoice::Auto,
+    );
+    log::set_boxed_logger(Box::new(logger)).expect("Failed to set simplelog logger");
+}
+
+fn log_to_syslog() {
+    let formatter = syslog::Formatter3164 {
+        facility: syslog::Facility::LOG_USER,
+        hostname: None,
+        process: "acsrs".into(),
+        pid: 0,
+    };
+    let logger = syslog::unix(formatter).expect("Impossible to connect to syslog");
+    log::set_boxed_logger(Box::new(syslog::BasicLogger::new(logger)))
+        .expect("Failed to set syslog logger");
+}
 
 /// Return the PUBLIC IP Address of this machine
 /// by querying http://ifconfig.me.
@@ -60,7 +83,23 @@ async fn main() -> Result<()> {
         .about("Auto Configuration Server")
         .arg(arg!(-c --config<PATH> "Specify config directory (default: ~/.acsrs/ )"))
         .arg(arg!(-d --daemon "Run as a daemon"))
+        .arg(arg!(-v --verbose "Show information logs"))
         .get_matches();
+
+    if matches.get_flag("daemon") {
+        println!("Logging to syslog");
+        log_to_syslog();
+    } else {
+        log_to_stderr();
+    }
+    if matches.get_flag("verbose") {
+        log::set_max_level(LevelFilter::Info)
+    } else {
+        log::set_max_level(LevelFilter::Warn)
+    }
+
+    warn!("ACSRS initialize");
+    info!("Info logs are enabled");
 
     let acsdir = match matches.get_one::<std::path::PathBuf>("config") {
         Some(value) => value.clone(),
@@ -72,7 +111,7 @@ async fn main() -> Result<()> {
 
     // Create config directory if doesn't exist
     if !acsdir.is_dir() {
-        println!("Create config directory: {:?}", acsdir);
+        warn!("Create config directory: {:?}", acsdir);
         std::fs::create_dir(&acsdir)
             .wrap_err_with(|| format!("Failed to create acs config directory at {:?}", acsdir))?;
     }
@@ -85,14 +124,14 @@ async fn main() -> Result<()> {
     // Restore ACS from config file or create a new one
     let acs = match Acs::restore(&acsdir).await {
         Ok(acs) => {
-            println!("ACS config restored from {:?}", acsdir);
+            warn!("ACS config restored from {:?}", acsdir);
             acs
         }
         Err(err) => {
-            println!("Could not restore ACS config from {:?}: {:?}", acsdir, err);
+            warn!("Could not restore ACS config from {:?}: {:?}", acsdir, err);
             let acs = Acs::new(&acsdir);
             if let Err(err) = acs.save().await {
-                println!("Failed to save ACS config to {:?}: {:?}", acsdir, err);
+                warn!("Failed to save ACS config to {:?}: {:?}", acsdir, err);
             }
             acs
         }
@@ -110,7 +149,7 @@ async fn main() -> Result<()> {
 
     // Create automated certificates
     if acs.config.autocert {
-        println!("Update certificates for CN={} in {:?}", hostname, acsdir);
+        warn!("Update certificates for CN={} in {:?}", hostname, acsdir);
         utils::gencertificates(&acsdir, &hostname);
         if !identityfile.exists() {
             return Err(eyre!("Failed to create {:?}", identityfile));
@@ -154,7 +193,7 @@ async fn main() -> Result<()> {
             acs.config.secure_address
         )
     })?;
-    println!("ACS listening on secure port   {:?}", sec_addr);
+    warn!("ACS listening on secure port   {:?}", sec_addr);
 
     // Create TCP listener waiting for unsecure connection from CPEs
     let cpe_addr: SocketAddr = acs.config.unsecure_address.parse().wrap_err_with(|| {
@@ -169,7 +208,7 @@ async fn main() -> Result<()> {
             acs.config.unsecure_address
         )
     })?;
-    println!("ACS listening on unsecure port {:?}", cpe_addr);
+    warn!("ACS listening on unsecure port {:?}", cpe_addr);
 
     // Create TCP listener for management
     let mng_addr: SocketAddr = acs.config.management_address.parse().wrap_err_with(|| {
@@ -184,10 +223,12 @@ async fn main() -> Result<()> {
             acs.config.management_address
         )
     })?;
-    println!("Management server listening on {:?}", mng_addr);
+    warn!("Management server listening on {:?}", mng_addr);
 
-    // Print ACS configuration
-    acs.print_config(&hostname);
+    // Print ACS configuration if started in foreground
+    if !matches.get_flag("daemon") {
+        acs.print_config(&hostname);
+    }
 
     // We are entering multi-threaded code: Lock the ACS context
     let acs = Arc::new(RwLock::new(acs));
@@ -197,10 +238,9 @@ async fn main() -> Result<()> {
 
     // Daemonize process if demanded
     if matches.get_flag("daemon") {
-        println!("Daemonize process !");
         let daemon = daemonize::Daemonize::new().pid_file(&pidfile);
-
         daemon.start().wrap_err_with(|| "Failed to daemonize")?;
+        warn!("ACSRS is daemonized");
     }
 
     // Unsecure server event loop
@@ -221,7 +261,7 @@ async fn main() -> Result<()> {
                     .serve_connection(stream, service_fn(service))
                     .await
                 {
-                    println!("Failed to serve connection: {:?}", err);
+                    error!("Failed to serve connection: {:?}", err);
                 }
             });
         }
@@ -237,7 +277,7 @@ async fn main() -> Result<()> {
                 let tls_stream = match tls_acceptor.accept(stream).await {
                     Ok(value) => value,
                     Err(err) => {
-                        println!("tls accept error: {:?}", err);
+                        error!("tls accept error: {:?}", err);
                         return;
                     }
                 };
@@ -254,7 +294,7 @@ async fn main() -> Result<()> {
                     .serve_connection(tls_stream, service_fn(service))
                     .await
                 {
-                    println!("Failed to serve connection: {:?}", err);
+                    error!("Failed to serve connection: {:?}", err);
                 }
             });
         }
@@ -278,7 +318,7 @@ async fn main() -> Result<()> {
                     .serve_connection(stream, service_fn(service))
                     .await
                 {
-                    println!("Failed to serve connection: {:?}", err);
+                    error!("Failed to serve connection: {:?}", err);
                 }
             });
         }
