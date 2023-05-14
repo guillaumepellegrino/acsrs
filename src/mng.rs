@@ -27,9 +27,9 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use log::*;
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
-use log::*;
 
 pub struct ManagementSession {
     acs: Arc<RwLock<Acs>>,

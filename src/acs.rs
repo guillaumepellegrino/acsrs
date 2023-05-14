@@ -20,10 +20,10 @@ use crate::soap;
 use crate::utils;
 use base64::Engine;
 use eyre::{eyre, Result};
+use log::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use log::*;
 
 use tokio::sync::{mpsc, RwLock};
 

@@ -25,11 +25,11 @@ use hyper::{body::Incoming as IncomingBody, Request, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use log::*;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
-use log::*;
 
 pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,

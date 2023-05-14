@@ -20,9 +20,9 @@ use bytes::Bytes;
 use eyre::Result;
 use http_body_util::{BodyExt, Full};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
+use log::*;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::io::Write;
-use log::*;
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     let mut i = 0;

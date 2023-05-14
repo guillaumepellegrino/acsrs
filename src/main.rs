@@ -47,8 +47,7 @@ fn log_to_stderr() {
         simplelog::TerminalMode::Stderr,
         simplelog::ColorChoice::Auto,
     );
-    log::set_boxed_logger(Box::new(logger))
-        .expect("Failed to set simplelog logger");
+    log::set_boxed_logger(Box::new(logger)).expect("Failed to set simplelog logger");
 }
 
 fn log_to_syslog() {
@@ -95,8 +94,7 @@ async fn main() -> Result<()> {
     }
     if matches.get_flag("verbose") {
         log::set_max_level(LevelFilter::Info)
-    }
-    else {
+    } else {
         log::set_max_level(LevelFilter::Warn)
     }
 
