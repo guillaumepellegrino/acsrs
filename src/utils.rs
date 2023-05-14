@@ -22,6 +22,7 @@ use http_body_util::{BodyExt, Full};
 use hyper::{body::Incoming as IncomingBody, Request, Response};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::io::Write;
+use log::*;
 
 pub fn req_path(req: &Request<IncomingBody>, num: u32) -> String {
     let mut i = 0;
@@ -55,7 +56,6 @@ pub fn reply_xml(response: &soap::Envelope) -> Result<Response<Full<Bytes>>> {
 
 pub fn reply_error(err: eyre::Report) -> Result<Response<Full<Bytes>>> {
     let reply = format!("Server internal error: {:?}\n", err);
-    println!("{}", reply);
     Ok(Response::builder()
         .status(500)
         .body(Full::new(Bytes::from(reply)))?)
@@ -93,5 +93,5 @@ pub fn gencertificates(acsdir: &std::path::Path, common_name: &str) {
 
     let status = child.wait().unwrap().success();
 
-    println!("status: {}", status);
+    warn!("Certificate status: {}", status);
 }

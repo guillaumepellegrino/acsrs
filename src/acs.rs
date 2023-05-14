@@ -23,6 +23,7 @@ use eyre::{eyre, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use log::*;
 
 use tokio::sync::{mpsc, RwLock};
 
@@ -175,9 +176,9 @@ impl CPEController {
             drop(cpe);
 
             // Send the ConnectionRequest to CPE
-            println!("Send ConnectionRequest to {}", connreq.url);
+            info!("Send ConnectionRequest to {}", connreq.url);
             connreq.send().await?;
-            println!("ConnectionRequest was acknowledged");
+            info!("ConnectionRequest was acknowledged");
         }
 
         Ok(())
@@ -210,7 +211,7 @@ impl Acs {
 
     pub async fn save(&self) -> Result<()> {
         let savefile = self.acsdir.join("config.toml");
-        println!("Save ACS config at {:?}", savefile);
+        info!("Save ACS config at {:?}", savefile);
 
         let mut db = db::Acs {
             config: self.config.clone(),
@@ -260,39 +261,39 @@ impl Acs {
             false => hostname.to_string(),
         };
 
-        println!();
+        warn!("");
         let addr: SocketAddr = self.config.secure_address.parse().unwrap();
-        println!("For secure connections, please ensure your CPEs are configured with:");
-        println!(
+        warn!("For secure connections, please ensure your CPEs are configured with:");
+        warn!(
             "Device.ManagementServer.URL=\"https://{}:{}/cwmpWeb/CPEMgt\"",
             hostname,
             addr.port()
         );
-        println!(
+        warn!(
             "Device.ManagementServer.Username=\"{}\"",
             self.config.username
         );
-        println!(
+        warn!(
             "Device.ManagementServer.Password=\"{}\"",
             self.config.password
         );
-        println!();
+        warn!("");
         let addr: SocketAddr = self.config.unsecure_address.parse().unwrap();
-        println!("For unsecure connections, please ensure your CPEs are configured with:");
-        println!(
+        warn!("For unsecure connections, please ensure your CPEs are configured with:");
+        warn!(
             "Device.ManagementServer.URL=\"http://{}:{}/cwmpWeb/CPEMgt\"",
             hostname,
             addr.port()
         );
-        println!(
+        warn!(
             "Device.ManagementServer.Username=\"{}\"",
             self.config.username
         );
-        println!(
+        warn!(
             "Device.ManagementServer.Password=\"{}\"",
             self.config.password
         );
-        println!();
+        warn!("");
     }
 }
 

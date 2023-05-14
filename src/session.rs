@@ -29,6 +29,7 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
+use log::*;
 
 pub struct TR069Session {
     acs: Arc<RwLock<Acs>>,
@@ -74,7 +75,7 @@ impl TR069Session {
                         value
                     }
                     None => {
-                        println!("[SN:{}][SID:{}][{}] Inform message does not contain ConnectionRequestURL", self.sn, self.id, self.counter);
+                        warn!("[SN:{}][SID:{}][{}] Inform message does not contain ConnectionRequestURL", self.sn, self.id, self.counter);
                         return;
                     }
                 }
@@ -106,9 +107,9 @@ impl TR069Session {
         }
         cpe.device_id = inform.device_id.clone();
         if cpe.connreq.url != connreq_url || inform.event.contains("0 BOOTSTRAP") {
-            println!("connreq.url is not configred: Configure ConnectionRequest");
+            info!("connreq.url is not configred: Configure ConnectionRequest");
 
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Unknown ConnReqURL: Configure CPE ConnectionRequest",
                 self.sn, self.id, self.counter
             );
@@ -131,7 +132,7 @@ impl TR069Session {
             drop(cpe);
             let controller = CPEController::new(cpelock.clone()).await;
             if let Err(err) = controller.add_transfer(transfer).await {
-                println!(
+                error!(
                     "[SN:{}][SID:{}][{}] Failed to configure CPE ConnectionRequest: {:?}",
                     self.sn, self.id, self.counter, err
                 );
@@ -141,7 +142,7 @@ impl TR069Session {
             let acs = self.acs.clone();
             tokio::task::spawn(async move {
                 if let Err(err) = acs.read().await.save().await {
-                    println!("Failed to save ACS config: {:?}", err);
+                    error!("Failed to save ACS config: {:?}", err);
                 }
             });
         }
@@ -160,7 +161,7 @@ impl TR069Session {
             };
             let baseurl = format!("{}://{}:{}", protocol, host, self.srvaddr.port());
             download.url.text = download.url.text.replace("${baseurl}", &baseurl);
-            println!("downloadurl={}", download.url.text);
+            info!("downloadurl={}", download.url.text);
         }
     }
 
@@ -172,7 +173,7 @@ impl TR069Session {
         let cpelock = match &self.cpe {
             Some(cpelock) => cpelock,
             None => {
-                println!(
+                info!(
                     "[SN:??][SID:??][{}] Send: Reply with no content (Unknown CPE)",
                     self.counter
                 );
@@ -187,7 +188,7 @@ impl TR069Session {
                     transfer = match rx {
                         Ok(transfer) => transfer,
                         Err(err) => {
-                            println!("[SN:{}][SID:{}][{}] Send: Reply with no content (Error reading transfer queue: {:?})",
+                            info!("[SN:{}][SID:{}][{}] Send: Reply with no content (Error reading transfer queue: {:?})",
                             self.sn, self.id, self.counter, err);
                             return utils::reply(204, String::from(""));
                         }
@@ -196,7 +197,7 @@ impl TR069Session {
                 }
                 Err(_) => {
                     if !cpelock.read().await.cpe_controller_running() {
-                        println!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
+                        info!("[SN:{}][SID:{}][{}] Send: Reply with no content (no pending transfer for CPE)",
                             self.sn, self.id, self.counter);
                         return utils::reply(204, String::from(""));
                     }
@@ -210,7 +211,7 @@ impl TR069Session {
 
         self.observer = transfer.observer;
 
-        println!(
+        info!(
             "[SN:{}][SID:{}][{}] Send: Transfer pending {:?} to CPE",
             self.sn,
             self.id,
@@ -224,15 +225,15 @@ impl TR069Session {
         &mut self,
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
-        //println!("Received from CPE");
-        //println!("  Headers: {:?}", req.headers());
+        //info!("Received from CPE");
+        //info!("  Headers: {:?}", req.headers());
 
         let content = utils::content(req).await?;
-        //println!("  Content: [\n{}\n]", content);
+        //info!("  Content: [\n{}\n]", content);
 
         //  The CPE has nothing to tell us: We may ask for a new Transfer
         if content.is_empty() {
-            println!("[SN:{}][SID:{}][{}] Received: Empty content => Check pending transfers for this CPE",
+            info!("[SN:{}][SID:{}][{}] Received: Empty content => Check pending transfers for this CPE",
                 self.sn, self.id, self.counter);
             return self.cpe_check_transfers(req).await;
         }
@@ -241,8 +242,8 @@ impl TR069Session {
         let envelope: soap::Envelope = match quick_xml::de::from_str(&content) {
             Ok(value) => value,
             Err(e) => {
-                println!("Failed to parse XML: {:?}", e);
-                println!("Content: [\n{}\n]\nContent End", content);
+                error!("Failed to parse XML: {:?}", e);
+                error!("Content: [\n{}\n]\nContent End", content);
                 return utils::reply(204, String::from(""));
             }
         };
@@ -251,20 +252,20 @@ impl TR069Session {
         if let Some(inform) = envelope.inform() {
             self.id = envelope.id().to_string();
             self.sn = inform.device_id.serial_number.clone();
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: Inform message",
                 self.sn, self.id, self.counter
             );
 
             for event in &inform.event.event_struct {
-                println!(
+                info!(
                     "[SN:{}][SID:{}][{}]      Event: {}",
                     self.sn, self.id, self.counter, event.event_code
                 );
             }
             self.cpe_handle_inform(inform).await;
 
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Send: Inform Response",
                 self.sn, self.id, self.counter
             );
@@ -272,27 +273,27 @@ impl TR069Session {
             response.add_inform_response();
             return utils::reply_xml(&response);
         } else if let Some(_gpn_response) = envelope.body.gpn_response.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: GPN Response",
                 self.sn, self.id, self.counter
             );
         } else if let Some(_gpv_response) = envelope.body.gpv_response.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: GPV Response",
                 self.sn, self.id, self.counter
             );
         } else if let Some(spv_response) = envelope.body.spv_response.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: SPV Response = {}",
                 self.sn, self.id, self.counter, spv_response.status
             );
         } else if let Some(download_response) = envelope.body.download_response.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: Download Response = {}",
                 self.sn, self.id, self.counter, download_response.status
             );
         } else if let Some(transfer_complete) = envelope.body.transfer_complete.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: TransferComplete = {:?}",
                 self.sn, self.id, self.counter, transfer_complete
             );
@@ -301,7 +302,7 @@ impl TR069Session {
             response.add_transfer_complete_response();
             return utils::reply_xml(&response);
         } else if let Some(fault) = envelope.body.fault.first() {
-            println!(
+            info!(
                 "[SN:{}][SID:{}][{}] Received: Fault: {} - {}",
                 self.sn,
                 self.id,
@@ -310,7 +311,7 @@ impl TR069Session {
                 fault.detail.cwmpfault.faultstring.text
             );
         } else {
-            println!(
+            error!(
                 "[SN:{}][SID:{}][{}] Received: Unexpected SOAP/XML Request: {}",
                 self.sn, self.id, self.counter, content
             );
@@ -321,7 +322,7 @@ impl TR069Session {
         // we forward the CPE response to him.
         if let Some(observer) = self.observer.as_mut() {
             if let Err(err) = observer.send(envelope).await {
-                println!(
+                error!(
                     "[SN:{}][SID:{}][{}] Failed to forward response to observer: {:?}",
                     self.sn, self.id, self.counter, err
                 );
@@ -339,7 +340,7 @@ impl TR069Session {
     ) -> Result<Response<Full<Bytes>>> {
         let download = utils::req_path(req, 1);
         let path = utils::req_path(req, 2);
-        println!("Handle Download of {}", path);
+        info!("Handle Download of {}", path);
         let acs = self.acs.read().await;
         let acsdir = acs.acsdir.clone();
         drop(acs);
@@ -367,7 +368,7 @@ impl TR069Session {
                 if wwwauth == self.acs.read().await.basicauth {
                     None
                 } else {
-                    println!(
+                    warn!(
                         "[SN:??][SID:??][{}] Access forbidden: {}",
                         self.counter, wwwauth
                     );
@@ -375,7 +376,7 @@ impl TR069Session {
                 }
             }
             None => {
-                println!("[SN:??][SID:??][{}] Authorization required", self.counter);
+                info!("[SN:??][SID:??][{}] Authorization required", self.counter);
                 let response = String::from("Authorization required\n");
                 let builder = Response::builder()
                     .header("User-Agent", "acsrs")

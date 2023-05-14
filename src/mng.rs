@@ -29,6 +29,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
+use log::*;
 
 pub struct ManagementSession {
     acs: Arc<RwLock<Acs>>,
@@ -301,7 +302,7 @@ impl ManagementSession {
         content: &str,
     ) -> Result<Response<Full<Bytes>>> {
         let s = format!("Unknown request: {}\n", req.uri());
-        println!("{}", content);
+        info!("{}", content);
         utils::reply(404, s)
     }
 
