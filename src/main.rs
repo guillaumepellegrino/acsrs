@@ -21,11 +21,13 @@ mod db;
 mod mng;
 mod session;
 mod soap;
+mod tokiort;
 mod utils;
 
 use crate::acs::*;
 use crate::mng::ManagementSession;
 use crate::session::*;
+use crate::tokiort::TokioIo;
 use clap::{arg, command};
 use eyre::{eyre, Result, WrapErr};
 use hyper::server::conn::http1;
@@ -247,6 +249,7 @@ async fn main() -> Result<()> {
     let cpe_srv = async move {
         loop {
             let (stream, _) = cpe_listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
             let acs = cpe_acs.clone();
             tokio::task::spawn(async move {
                 let session = Arc::new(RwLock::new(TR069Session::new(acs, cpe_addr, false)));
@@ -258,7 +261,7 @@ async fn main() -> Result<()> {
                     }
                 };
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(stream, service_fn(service))
+                    .serve_connection(io, service_fn(service))
                     .await
                 {
                     error!("Failed to serve connection: {:?}", err);
@@ -281,6 +284,7 @@ async fn main() -> Result<()> {
                         return;
                     }
                 };
+                let io = TokioIo::new(tls_stream);
 
                 let session = Arc::new(RwLock::new(TR069Session::new(acs, sec_addr, true)));
                 let service = |mut req: Request<hyper::body::Incoming>| {
@@ -291,7 +295,7 @@ async fn main() -> Result<()> {
                     }
                 };
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(tls_stream, service_fn(service))
+                    .serve_connection(io, service_fn(service))
                     .await
                 {
                     error!("Failed to serve connection: {:?}", err);
@@ -304,6 +308,7 @@ async fn main() -> Result<()> {
     let mng_srv = async move {
         loop {
             let (stream, _) = mng_listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
             let acs = mng_acs.clone();
             tokio::task::spawn(async move {
                 let session = Arc::new(RwLock::new(ManagementSession::new(acs)));
@@ -315,7 +320,7 @@ async fn main() -> Result<()> {
                     }
                 };
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(stream, service_fn(service))
+                    .serve_connection(io, service_fn(service))
                     .await
                 {
                     error!("Failed to serve connection: {:?}", err);

@@ -16,9 +16,10 @@ dependencies = [
  "futures",
  "h2",
  "http-body-util",
- "hyper 1.0.0-rc.3",
+ "hyper 1.0.0-rc.4",
  "log",
  "native-tls",
+ "pin-project-lite",
  "proc-macro2",
  "quick-xml",
  "rand",
@@ -651,12 +652,12 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.0.0-rc.3"
-source = "git+https://github.com/hyperium/hyper.git?rev=v1.0.0-rc.3#4cf38a12ce7cc5dfd3af356a0cef61ace4ce82b9"
+version = "1.0.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d280a71f348bcc670fc55b02b63c53a04ac0bf2daff2980795aeaf53edae10e6"
 dependencies = [
  "bytes",
  "futures-channel",
- "futures-core",
  "futures-util",
  "h2",
  "http",

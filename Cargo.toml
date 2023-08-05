@@ -19,10 +19,10 @@ name = "acscli"
 path = "src/acscli.rs"
 
 [dependencies]
-# hyper v1.0.0-rc.4 is bringing breaking changes. We must use rc.3 no more, no less.
-hyper = { version = "1.0.0-rc.3", git = "https://github.com/hyperium/hyper.git", rev = "v1.0.0-rc.3", features = ["full"] }
+hyper = { version = "1.0.0-rc.4", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 tokio-native-tls = "0.3.1"
+pin-project-lite = "0.2.10"
 h2 = "0.3.17"
 spin = "0.9.8"
 native-tls = "0.2.11"
