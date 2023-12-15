@@ -41,7 +41,7 @@ pub struct AddObject {
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct AddObjectResponse {
     pub instance_number: u32,
-    pub status: bool
+    pub status: bool,
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]

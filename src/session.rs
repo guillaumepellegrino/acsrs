@@ -290,8 +290,15 @@ impl TR069Session {
         } else if let Some(aobj_response) = envelope.body.aobj_response.first() {
             info!(
                 "[SN:{}][SID:{}][{}] Received: AddObject Response => {}: {} ",
-                self.sn, self.id, self.counter, aobj_response.instance_number,
-                if aobj_response.status == 1 { "Pending" } else { "Added" }
+                self.sn,
+                self.id,
+                self.counter,
+                aobj_response.instance_number,
+                if aobj_response.status == 1 {
+                    "Pending"
+                } else {
+                    "Added"
+                }
             );
         } else if let Some(download_response) = envelope.body.download_response.first() {
             info!(

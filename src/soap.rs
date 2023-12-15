@@ -566,15 +566,14 @@ pub struct Body {
     #[serde(default)]
     pub spv_response: Vec<SetParameterValuesResponse>,
 
-    #[serde(rename(
-        serialize = "cwmp:AddObject",
-        deserialize = "AddObject"))]
+    #[serde(rename(serialize = "cwmp:AddObject", deserialize = "AddObject"))]
     #[serde(default)]
     pub aobj: Vec<AddObject>,
 
     #[serde(rename(
         serialize = "cwmp:AddObjectResponse",
-        deserialize = "AddObjectResponse"))]
+        deserialize = "AddObjectResponse"
+    ))]
     #[serde(default)]
     pub aobj_response: Vec<AddObjectResponse>,
 

@@ -56,7 +56,12 @@ impl fmt::Display for api::Response {
                 write!(f, "SetParameterValues Status: {}", response)?;
             }
             api::Response::AddObject(response) => {
-                write!(f, "{} => {}", response.instance_number, if response.status { "Pending" } else { "Added" })?;
+                write!(
+                    f,
+                    "{} => {}",
+                    response.instance_number,
+                    if response.status { "Pending" } else { "Added" }
+                )?;
             }
             api::Response::Upgrade(response) => {
                 write!(f, "Upgrade Status: {}", response.status)?;
@@ -203,13 +208,13 @@ impl AcsCli {
     }
 
     async fn aobj(&mut self, arg1: Option<&String>) -> Result<()> {
-        let Some(aobj) = arg1.map(|s| api::AddObject { object_name: s.clone() }) else {
-            return Err(eyre!("Missing argument"))
+        let Some(aobj) = arg1.map(|s| api::AddObject {
+            object_name: s.clone(),
+        }) else {
+            return Err(eyre!("Missing argument"));
         };
 
-        let response = self
-            .sendrequest(api::Command::AddObject(aobj))
-            .await?;
+        let response = self.sendrequest(api::Command::AddObject(aobj)).await?;
         println!("{}", response);
         Ok(())
     }
