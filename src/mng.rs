@@ -126,6 +126,8 @@ impl ManagementSession {
             api::Response::GetParameterValues(list)
         } else if let Some(response) = soap.body.spv_response.first() {
             api::Response::SetParameterValues(response.status == 0)
+        } else if let Some(response) = soap.body.aobj_response.first() {
+            api::Response::AddObject(api::AddObjectResponse { instance_number: response.instance_number, status: response.status == 1 })
         } else {
             api::Response::error(400, "Unknown response from CPE")
         }
@@ -220,6 +222,15 @@ impl ManagementSession {
         self.transfer_to_cpe(serial_number, spv_envelope).await
     }
 
+    async fn add_object(&mut self, serial_number: &str, aobj: &api::AddObject) -> api::Response {
+        let mut aobj_envelope = soap::Envelope::new("");
+        let soap_aobj = aobj_envelope.add_aobj(1);
+
+        soap_aobj.object_name = aobj.object_name.clone();
+
+        self.transfer_to_cpe(serial_number, aobj_envelope).await
+    }
+
     async fn upgrade(&mut self, serial_number: &str, upgrade: &api::Upgrade) -> api::Response {
         let acs = self.acs.read().await;
         let url = format!("${{baseurl}}/download/{}", upgrade.file_name);
@@ -273,6 +284,9 @@ impl ManagementSession {
             }
             api::Command::SetParameterValues(spv) => {
                 self.set_parameter_values(&request.serial_number, spv).await
+            }
+            api::Command::AddObject(aobj) => {
+                self.add_object(&request.serial_number, aobj).await
             }
             api::Command::Upgrade(upgrade) => self.upgrade(&request.serial_number, upgrade).await,
             api::Command::List => self.list().await,

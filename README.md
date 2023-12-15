@@ -51,6 +51,7 @@ acscli is an interactive UNIX cli for ACSRS
  - cd [path]: Change directory
  - get [path] | [path]? : Get object or parameter value
  - set [path]<type>=value | [path]<type>=value : Set Parameter value
+ - add [path] | [path]+ : Add a new object to an object collection.
  - upgrade [filename] : Upgrade CPE to provided firmware
 
 

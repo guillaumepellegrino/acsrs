@@ -55,6 +55,9 @@ impl fmt::Display for api::Response {
             api::Response::SetParameterValues(response) => {
                 write!(f, "SetParameterValues Status: {}", response)?;
             }
+            api::Response::AddObject(response) => {
+                write!(f, "{} => {}", response.instance_number, if response.status { "Pending" } else { "Added" })?;
+            }
             api::Response::Upgrade(response) => {
                 write!(f, "Upgrade Status: {}", response.status)?;
             }
@@ -199,6 +202,18 @@ impl AcsCli {
         Ok(())
     }
 
+    async fn aobj(&mut self, arg1: Option<&String>) -> Result<()> {
+        let Some(aobj) = arg1.map(|s| api::AddObject { object_name: s.clone() }) else {
+            return Err(eyre!("Missing argument"))
+        };
+
+        let response = self
+            .sendrequest(api::Command::AddObject(aobj))
+            .await?;
+        println!("{}", response);
+        Ok(())
+    }
+
     async fn upgrade(&mut self, arg1: Option<&String>) -> Result<()> {
         if self.connectedto.is_none() {
             return Err(eyre!("Not connected !"));
@@ -326,6 +341,7 @@ impl AcsCli {
         println!(" - cd [path]: Change directory");
         println!(" - get [path] | [path]? : Get object or parameter value");
         println!(" - set [path]<type>=value | [path]<type>=value : Set Parameter value");
+        println!(" - add [path] | [path]+ : Add Object");
         println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
     }
 
@@ -335,6 +351,9 @@ impl AcsCli {
         }
         if cmd.contains('=') {
             return self.spv(Some(&String::from(cmd))).await;
+        }
+        if let Some((objpath, _)) = cmd.split_once('+') {
+            return self.aobj(Some(&String::from(objpath))).await;
         }
 
         Err(eyre!("Unknown command '{}'", cmd))
@@ -356,6 +375,9 @@ impl AcsCli {
             }
             "set" => {
                 self.spv(arg1).await?;
+            }
+            "add" => {
+                self.aobj(arg1).await?;
             }
             "ls" => {
                 self.list(arg1).await?;
@@ -391,6 +413,7 @@ impl AcsCli {
             suggestions.push(String::from("get "));
             suggestions.push(String::from("set "));
             suggestions.push(String::from("upgrade "));
+            suggestions.push(String::from("add "));
         } else {
             suggestions.push(String::from("connect "));
         }
