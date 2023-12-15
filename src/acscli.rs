@@ -63,6 +63,17 @@ impl fmt::Display for api::Response {
                     if response.status { "Pending" } else { "Added" }
                 )?;
             }
+            api::Response::DeleteObject(response) => {
+                write!(
+                    f,
+                    "{}",
+                    if response.status {
+                        "Pending"
+                    } else {
+                        "Deleted"
+                    }
+                )?;
+            }
             api::Response::Upgrade(response) => {
                 write!(f, "Upgrade Status: {}", response.status)?;
             }
@@ -208,13 +219,23 @@ impl AcsCli {
     }
 
     async fn aobj(&mut self, arg1: Option<&String>) -> Result<()> {
-        let Some(aobj) = arg1.map(|s| api::AddObject {
-            object_name: s.clone(),
-        }) else {
-            return Err(eyre!("Missing argument"));
+        let object_name = match arg1 {
+            Some(arg1) => self.abspath(arg1),
+            None => self.abspath(""),
         };
-
+        let aobj = api::AddObject { object_name };
         let response = self.sendrequest(api::Command::AddObject(aobj)).await?;
+        println!("{}", response);
+        Ok(())
+    }
+
+    async fn dobj(&mut self, arg1: Option<&String>) -> Result<()> {
+        let object_name = match arg1 {
+            Some(arg1) => self.abspath(arg1),
+            None => self.abspath(""),
+        };
+        let dobj = api::DeleteObject { object_name };
+        let response = self.sendrequest(api::Command::DeleteObject(dobj)).await?;
         println!("{}", response);
         Ok(())
     }
@@ -347,6 +368,7 @@ impl AcsCli {
         println!(" - get [path] | [path]? : Get object or parameter value");
         println!(" - set [path]<type>=value | [path]<type>=value : Set Parameter value");
         println!(" - add [path] | [path]+ : Add Object");
+        println!(" - del [path] | [path]- : Delete Object");
         println!(" - upgrade [filename] : Upgrade CPE to provided firmware");
     }
 
@@ -359,6 +381,9 @@ impl AcsCli {
         }
         if let Some((objpath, _)) = cmd.split_once('+') {
             return self.aobj(Some(&String::from(objpath))).await;
+        }
+        if let Some((objpath, _)) = cmd.split_once('-') {
+            return self.dobj(Some(&String::from(objpath))).await;
         }
 
         Err(eyre!("Unknown command '{}'", cmd))
@@ -383,6 +408,9 @@ impl AcsCli {
             }
             "add" => {
                 self.aobj(arg1).await?;
+            }
+            "del" => {
+                self.dobj(arg1).await?;
             }
             "ls" => {
                 self.list(arg1).await?;
