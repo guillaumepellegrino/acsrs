@@ -261,6 +261,23 @@ pub struct SetParameterValuesResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct AddObject {
+    #[serde(rename = "ObjectName")]
+    pub object_name: String,
+
+    #[serde(rename = "ParameterKey")]
+    pub parameter_key: u64,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct AddObjectResponse {
+    #[serde(rename = "InstanceNumber")]
+    pub instance_number: u32,
+    #[serde(rename = "Status")]
+    pub status: i32,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Download {
     #[serde(rename = "CommandKey")]
     pub command_key: Value,
@@ -491,6 +508,8 @@ pub enum Kind {
     RebootResponse,
     TransferComplete,
     TransferCompleteResponse,
+    AddObject,
+    AddObjectResponse,
     Fault,
     Unknown,
 }
@@ -546,6 +565,18 @@ pub struct Body {
     ))]
     #[serde(default)]
     pub spv_response: Vec<SetParameterValuesResponse>,
+
+    #[serde(rename(
+        serialize = "cwmp:AddObject",
+        deserialize = "AddObject"))]
+    #[serde(default)]
+    pub aobj: Vec<AddObject>,
+
+    #[serde(rename(
+        serialize = "cwmp:AddObjectResponse",
+        deserialize = "AddObjectResponse"))]
+    #[serde(default)]
+    pub aobj_response: Vec<AddObjectResponse>,
 
     #[serde(rename(serialize = "cwmp:Download", deserialize = "Download"))]
     #[serde(default)]
@@ -639,6 +670,10 @@ impl Envelope {
             Kind::SetParameterValues
         } else if self.body.spv_response.first().is_some() {
             Kind::SetParameterValuesResponse
+        } else if self.body.aobj.first().is_some() {
+            Kind::AddObject
+        } else if self.body.aobj_response.first().is_some() {
+            Kind::AddObjectResponse
         } else if self.body.download.first().is_some() {
             Kind::Download
         } else if self.body.download_response.first().is_some() {
@@ -690,6 +725,16 @@ impl Envelope {
         };
         self.body.spv.push(spv);
         self.body.spv.first_mut().unwrap()
+    }
+
+    pub fn add_aobj(&mut self, parameter_key: u64) -> &mut AddObject {
+        let aobj = AddObject {
+            object_name: String::default(),
+            parameter_key,
+        };
+
+        self.body.aobj.push(aobj);
+        self.body.aobj.first_mut().unwrap()
     }
 
     #[allow(dead_code)]
@@ -851,6 +896,21 @@ fn test_spv() {
         .unwrap()
         .parse()
         .unwrap();
+    assert_eq!(value, expected.trim());
+}
+
+#[test]
+fn test_aobj() {
+    let mut envelope = Envelope::new("2");
+    let apv = envelope.add_aobj(2302518885);
+    apv.object_name = "Device.NAT.PortMapping.".to_string();
+
+    let value = quick_xml::se::to_string(&envelope).unwrap();
+    let expected: String = std::fs::read_to_string("test/aobj.xml")
+        .unwrap()
+        .parse()
+        .unwrap();
+
     assert_eq!(value, expected.trim());
 }
 
