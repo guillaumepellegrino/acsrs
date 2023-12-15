@@ -289,7 +289,7 @@ impl TR069Session {
             );
         } else if let Some(aobj_response) = envelope.body.aobj_response.first() {
             info!(
-                "[SN:{}][SID:{}][{}] Received: AddObject Response => {}: {} ",
+                "[SN:{}][SID:{}][{}] Received: AddObject Response => {}: {}",
                 self.sn,
                 self.id,
                 self.counter,
@@ -298,6 +298,18 @@ impl TR069Session {
                     "Pending"
                 } else {
                     "Added"
+                }
+            );
+        } else if let Some(dobj_response) = envelope.body.dobj_response.first() {
+            info!(
+                "[SN:{}][SID:{}][{}] Received: DeleteObject Response => {}",
+                self.sn,
+                self.id,
+                self.counter,
+                if dobj_response.status == 1 {
+                    "Pending"
+                } else {
+                    "Deleted"
                 }
             );
         } else if let Some(download_response) = envelope.body.download_response.first() {

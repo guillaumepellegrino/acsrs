@@ -278,6 +278,21 @@ pub struct AddObjectResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct DeleteObject {
+    #[serde(rename = "ObjectName")]
+    pub object_name: String,
+
+    #[serde(rename = "ParameterKey")]
+    pub parameter_key: u64,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+pub struct DeleteObjectResponse {
+    #[serde(rename = "Status")]
+    pub status: i32,
+}
+
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
 pub struct Download {
     #[serde(rename = "CommandKey")]
     pub command_key: Value,
@@ -510,6 +525,8 @@ pub enum Kind {
     TransferCompleteResponse,
     AddObject,
     AddObjectResponse,
+    DeleteObject,
+    DeleteObjectResponse,
     Fault,
     Unknown,
 }
@@ -576,6 +593,17 @@ pub struct Body {
     ))]
     #[serde(default)]
     pub aobj_response: Vec<AddObjectResponse>,
+
+    #[serde(rename(serialize = "cwmp:DeleteObject", deserialize = "DeleteObject"))]
+    #[serde(default)]
+    pub dobj: Vec<DeleteObject>,
+
+    #[serde(rename(
+        serialize = "cwmp:DeleteObjectResponse",
+        deserialize = "DeleteObjectResponse"
+    ))]
+    #[serde(default)]
+    pub dobj_response: Vec<DeleteObjectResponse>,
 
     #[serde(rename(serialize = "cwmp:Download", deserialize = "Download"))]
     #[serde(default)]
@@ -673,6 +701,10 @@ impl Envelope {
             Kind::AddObject
         } else if self.body.aobj_response.first().is_some() {
             Kind::AddObjectResponse
+        } else if self.body.dobj.first().is_some() {
+            Kind::DeleteObject
+        } else if self.body.dobj_response.first().is_some() {
+            Kind::DeleteObjectResponse
         } else if self.body.download.first().is_some() {
             Kind::Download
         } else if self.body.download_response.first().is_some() {
@@ -734,6 +766,16 @@ impl Envelope {
 
         self.body.aobj.push(aobj);
         self.body.aobj.first_mut().unwrap()
+    }
+
+    pub fn add_dobj(&mut self, parameter_key: u64) -> &mut DeleteObject {
+        let dobj = DeleteObject {
+            object_name: String::default(),
+            parameter_key,
+        };
+
+        self.body.dobj.push(dobj);
+        self.body.dobj.first_mut().unwrap()
     }
 
     #[allow(dead_code)]

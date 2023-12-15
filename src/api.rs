@@ -45,6 +45,16 @@ pub struct AddObjectResponse {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+pub struct DeleteObject {
+    pub object_name: String,
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+pub struct DeleteObjectResponse {
+    pub status: bool,
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct Upgrade {
     pub file_name: String,
 }
@@ -75,6 +85,7 @@ pub enum Command {
     GetParameterValues(Vec<GetParameterValues>),
     SetParameterValues(Vec<SetParameterValues>),
     AddObject(AddObject),
+    DeleteObject(DeleteObject),
     Upgrade(Upgrade),
     List,
 }
@@ -92,6 +103,7 @@ pub enum Response {
     GetParameterValues(Vec<GetParameterValuesResponse>),
     SetParameterValues(bool),
     AddObject(AddObjectResponse),
+    DeleteObject(DeleteObjectResponse),
     Upgrade(UpgradeResponse),
     List(Vec<CPE>),
     Error(ErrorResponse),

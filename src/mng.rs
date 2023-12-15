@@ -131,6 +131,10 @@ impl ManagementSession {
                 instance_number: response.instance_number,
                 status: response.status == 1,
             })
+        } else if let Some(response) = soap.body.dobj_response.first() {
+            api::Response::DeleteObject(api::DeleteObjectResponse {
+                status: response.status == 1,
+            })
         } else {
             api::Response::error(400, "Unknown response from CPE")
         }
@@ -234,6 +238,19 @@ impl ManagementSession {
         self.transfer_to_cpe(serial_number, aobj_envelope).await
     }
 
+    async fn delete_object(
+        &mut self,
+        serial_number: &str,
+        dobj: &api::DeleteObject,
+    ) -> api::Response {
+        let mut dobj_envelope = soap::Envelope::new("");
+        let soap_dobj = dobj_envelope.add_dobj(1);
+
+        soap_dobj.object_name = dobj.object_name.clone();
+
+        self.transfer_to_cpe(serial_number, dobj_envelope).await
+    }
+
     async fn upgrade(&mut self, serial_number: &str, upgrade: &api::Upgrade) -> api::Response {
         let acs = self.acs.read().await;
         let url = format!("${{baseurl}}/download/{}", upgrade.file_name);
@@ -289,6 +306,9 @@ impl ManagementSession {
                 self.set_parameter_values(&request.serial_number, spv).await
             }
             api::Command::AddObject(aobj) => self.add_object(&request.serial_number, aobj).await,
+            api::Command::DeleteObject(dobj) => {
+                self.delete_object(&request.serial_number, dobj).await
+            }
             api::Command::Upgrade(upgrade) => self.upgrade(&request.serial_number, upgrade).await,
             api::Command::List => self.list().await,
         }
