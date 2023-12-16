@@ -73,6 +73,42 @@ pub struct CPE {
     pub password: String,
 }
 
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub enum Event {
+    Boostrap,
+    Boot,
+    Periodic,
+    Scheduled,
+    ValueChange,
+    Kicked,
+    ConnectionRequest,
+    TransferComplete,
+    DiagnosticsComplete,
+    RequestDownload,
+    AutonomousTransferComplete,
+    MReboot,
+    MScheduleInform,
+    MDownload,
+    MUpload,
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+pub struct InformParameter {
+    pub r#type: String,
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+pub struct Inform {
+    pub manufacturer: String,
+    pub oui: String,
+    pub product_class: String,
+    pub serial_number: String,
+    pub events: Vec<Event>,
+    pub parameters: Vec<InformParameter>,
+}
+
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct ErrorResponse {
     pub status: u16,
@@ -88,6 +124,7 @@ pub enum Command {
     DeleteObject(DeleteObject),
     Upgrade(Upgrade),
     List,
+    Monitor,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -107,6 +144,7 @@ pub enum Response {
     Upgrade(UpgradeResponse),
     List(Vec<CPE>),
     Error(ErrorResponse),
+    Monitor(Vec<Inform>),
 }
 
 impl Response {

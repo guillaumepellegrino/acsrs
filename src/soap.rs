@@ -18,7 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ID {
     #[serde(rename = "$text")]
     pub text: String,
@@ -28,13 +28,13 @@ pub struct ID {
     must_understand: u32,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Header {
     #[serde(rename(serialize = "cwmp:ID", deserialize = "ID"))]
     pub id: ID,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct DeviceId {
     #[serde(rename = "Manufacturer")]
     pub manufacturer: String,
@@ -49,7 +49,7 @@ pub struct DeviceId {
     pub serial_number: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct EventStruct {
     #[serde(rename = "EventCode")]
     pub event_code: String,
@@ -58,7 +58,7 @@ pub struct EventStruct {
     pub command_key: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Event {
     #[serde(rename = "EventStruct")]
     #[serde(default)]
@@ -76,7 +76,7 @@ impl Event {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Value {
     #[serde(rename(serialize = "@xsi:type", deserialize = "@type"))]
     #[serde(default)]
@@ -87,7 +87,7 @@ pub struct Value {
     pub text: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterValue {
     #[serde(rename = "Name")]
     pub name: String,
@@ -108,7 +108,7 @@ impl ParameterValue {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterList {
     #[serde(rename(serialize = "@soap:arrayType", deserialize = "@arrayType"))]
     #[serde(default)]
@@ -132,7 +132,7 @@ impl ParameterList {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Inform {
     #[serde(rename = "DeviceId")]
     pub device_id: DeviceId,
@@ -146,7 +146,7 @@ pub struct Inform {
     pub parameter_list: ParameterList,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct InformResponse {
     #[serde(rename = "MaxEnvelopes")]
     pub max_envelopes: u32,
@@ -158,7 +158,7 @@ impl Default for InformResponse {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct GetParameterNames {
     #[serde(rename = "ParameterPath")]
     #[serde(default)]
@@ -169,7 +169,7 @@ pub struct GetParameterNames {
     pub next_level: u8,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterInfoStruct {
     #[serde(rename = "Name")]
     #[serde(default)]
@@ -180,21 +180,21 @@ pub struct ParameterInfoStruct {
     pub writable: u8,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterListInfo {
     #[serde(rename = "ParameterInfoStruct")]
     #[serde(default)]
     pub parameter_info: Vec<ParameterInfoStruct>,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct GetParameterNamesResponse {
     #[serde(rename = "ParameterList")]
     #[serde(default)]
     pub parameter_list: ParameterListInfo,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct ParameterNames {
     #[serde(rename = "@soap:arrayType")]
     #[serde(default)]
@@ -204,7 +204,7 @@ pub struct ParameterNames {
     pub string: Vec<String>,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct GetParameterValues {
     #[serde(rename = "ParameterNames")]
     #[serde(default)]
@@ -224,14 +224,14 @@ impl GetParameterValues {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct GetParameterValuesResponse {
     #[serde(rename = "ParameterList")]
     #[serde(default)]
     pub parameter_list: ParameterList,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct SetParameterValues {
     #[serde(rename = "ParameterList")]
     pub parameter_list: ParameterList,
@@ -254,13 +254,13 @@ impl SetParameterValues {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct SetParameterValuesResponse {
     #[serde(rename = "Status")]
     pub status: i32,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct AddObject {
     #[serde(rename = "ObjectName")]
     pub object_name: String,
@@ -269,7 +269,7 @@ pub struct AddObject {
     pub parameter_key: u64,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct AddObjectResponse {
     #[serde(rename = "InstanceNumber")]
     pub instance_number: u32,
@@ -277,7 +277,7 @@ pub struct AddObjectResponse {
     pub status: i32,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct DeleteObject {
     #[serde(rename = "ObjectName")]
     pub object_name: String,
@@ -286,13 +286,13 @@ pub struct DeleteObject {
     pub parameter_key: u64,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct DeleteObjectResponse {
     #[serde(rename = "Status")]
     pub status: i32,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Download {
     #[serde(rename = "CommandKey")]
     pub command_key: Value,
@@ -424,7 +424,7 @@ impl Download {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct DownloadResponse {
     #[serde(rename = "Status")]
     pub status: String,
@@ -436,7 +436,7 @@ pub struct DownloadResponse {
     pub complete_time: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct TransferComplete {
     #[serde(rename = "CommandKey")]
     pub command_key: String,
@@ -451,10 +451,10 @@ pub struct TransferComplete {
     pub complete_time: String,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct TransferCompleteResponse {}
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Reboot {
     #[serde(rename = "CommandKey")]
     pub command_key: Value,
@@ -471,10 +471,10 @@ impl Reboot {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct RebootResponse {}
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct CwmpFault {
     #[serde(rename = "FaultCode")]
     #[serde(default)]
@@ -485,14 +485,14 @@ pub struct CwmpFault {
     pub faultstring: Value,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct SoapFaultDetail {
     #[serde(rename(serialize = "cwmp:Fault", deserialize = "Fault"))]
     #[serde(default)]
     pub cwmpfault: CwmpFault,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct SoapFault {
     #[serde(rename = "faultcode")]
     #[serde(default)]
@@ -507,7 +507,7 @@ pub struct SoapFault {
     pub detail: SoapFaultDetail,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Kind {
     Inform,
     InformResponse,
@@ -531,7 +531,7 @@ pub enum Kind {
     Unknown,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct Body {
     #[serde(rename = "Inform")]
     #[serde(default)]
@@ -637,7 +637,7 @@ pub struct Body {
     pub fault: Vec<SoapFault>,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 #[serde(rename(serialize = "soapenv:Envelope", deserialize = "Envelope"))]
 pub struct Envelope {
     #[serde(rename = "@xmlns:soap")]

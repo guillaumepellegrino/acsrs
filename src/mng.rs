@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::*;
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 use tokio::time::{timeout, Duration};
 
 pub struct ManagementSession {
@@ -40,6 +40,8 @@ pub struct ManagementSession {
     // This is done to implement a fast and reactive cli. The HTTPs connection does not need to be
     // reestablished at each cli commands.
     controller_list: HashMap<String, CPEController>,
+
+    monitor: Option<broadcast::Receiver<soap::Inform>>,
 }
 
 impl ManagementSession {
@@ -47,6 +49,7 @@ impl ManagementSession {
         Self {
             acs,
             controller_list: HashMap::<String, CPEController>::new(),
+            monitor: None,
         }
     }
 
@@ -284,6 +287,77 @@ impl ManagementSession {
         api::Response::List(cpe_list)
     }
 
+    async fn monitor(&mut self) -> api::Response {
+        let mut informs = vec![];
+
+        // Subscribe to ACS Inform Events
+        if self.monitor.is_none() {
+            let acs = self.acs.read().await;
+            self.monitor = Some(acs.subscribe());
+        }
+
+        // Wait for at least one Inform Event
+        loop {
+            let monitor = self.monitor.as_mut().unwrap();
+            let inform = match monitor.recv().await {
+                Ok(inform) => inform,
+                Err(e) => {
+                    return api::Response::error(
+                        400,
+                        &format!("Failed to recv Inform Event: {:?}", e),
+                    )
+                }
+            };
+
+            let mut events = vec![];
+            for event in &inform.event.event_struct {
+                println!("event: {:?}", event);
+                let event = match event.event_code.as_str() {
+                    "0 BOOSTRAP" => api::Event::Boostrap,
+                    "1 BOOT" => api::Event::Boot,
+                    "2 PERIODIC" => api::Event::Periodic,
+                    "3 SCHEDULED" => api::Event::Scheduled,
+                    "4 VALUE CHANGE" => api::Event::ValueChange,
+                    "5 KICKED" => api::Event::Kicked,
+                    "6 CONNECTION REQUEST" => api::Event::ConnectionRequest,
+                    "7 TRANSFER COMPLETE" => api::Event::TransferComplete,
+                    "8 DIAGNOSTICS COMPLETE" => api::Event::DiagnosticsComplete,
+                    "9 REQUEST DOWNLOAD" => api::Event::RequestDownload,
+                    "10 AUTONOMOUS TRANSFER COMPLETE" => api::Event::AutonomousTransferComplete,
+                    "M Reboot" => api::Event::MReboot,
+                    "M ScheduleInform" => api::Event::MScheduleInform,
+                    "M Download" => api::Event::MDownload,
+                    "M Upload" => api::Event::MUpload,
+                    _ => continue,
+                };
+                events.push(event);
+            }
+
+            let mut parameters = vec![];
+            for pv in &inform.parameter_list.parameter_values {
+                parameters.push(api::InformParameter {
+                    name: pv.name.clone(),
+                    r#type: pv.value.xsi_type.clone(),
+                    value: pv.value.text.clone(),
+                });
+            }
+
+            informs.push(api::Inform {
+                serial_number: inform.device_id.serial_number.clone(),
+                manufacturer: inform.device_id.manufacturer.clone(),
+                oui: inform.device_id.oui.clone(),
+                product_class: inform.device_id.product_class.clone(),
+                events,
+                parameters,
+            });
+            if monitor.is_empty() {
+                break;
+            }
+        }
+
+        api::Response::Monitor(informs)
+    }
+
     async fn api(&mut self, content: &str) -> api::Response {
         let request: api::Request = match serde_json::from_str(content) {
             Ok(request) => request,
@@ -311,6 +385,7 @@ impl ManagementSession {
             }
             api::Command::Upgrade(upgrade) => self.upgrade(&request.serial_number, upgrade).await,
             api::Command::List => self.list().await,
+            api::Command::Monitor => self.monitor().await,
         }
     }
 

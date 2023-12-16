@@ -58,6 +58,16 @@ impl TR069Session {
         }
     }
 
+    async fn cpe_notify_observers(&mut self, inform: &soap::Inform) {
+        let acs = self.acs.read().await;
+        if acs.observers.receiver_count() == 0 {
+            return;
+        }
+        if let Err(e) = acs.observers.send(inform.clone()) {
+            error!("Failed to notify observers: {:?}", e);
+        }
+    }
+
     async fn cpe_handle_inform(&mut self, inform: &soap::Inform) {
         let mut igd = false;
         let connreq_url = match inform
@@ -264,6 +274,7 @@ impl TR069Session {
                 );
             }
             self.cpe_handle_inform(inform).await;
+            self.cpe_notify_observers(inform).await;
 
             info!(
                 "[SN:{}][SID:{}][{}] Send: Inform Response",
