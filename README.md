@@ -44,6 +44,7 @@ acscli is an interactive UNIX cli for ACSRS
 ## Availables command when disconnected:
  - ls: List connected CPEs to this ACS
  - cd|connect [SN] : Connect to CPE specified by this Serial Number
+ - monitor : Monitor all Inform messages received by ACS
 
 ## Availables command when connected to a CPE:
  - disconnect :  Disconnect from the current CPE

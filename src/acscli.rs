@@ -86,6 +86,11 @@ impl fmt::Display for api::Response {
                     )?;
                 }
             }
+            api::Response::Monitor(informs) => {
+                for inform in informs {
+                    writeln!(f, "{:?}", inform)?;
+                }
+            }
             api::Response::Error(response) => {
                 write!(f, "Error: {:?}", response.description)?;
             }
@@ -254,6 +259,13 @@ impl AcsCli {
         Ok(())
     }
 
+    async fn monitor(&mut self) -> Result<()> {
+        loop {
+            let response = self.sendrequest(api::Command::Monitor).await?;
+            println!("{}", response);
+        }
+    }
+
     fn abspath(&self, relpath: &str) -> String {
         format!("{}{}", self.directory, relpath)
     }
@@ -360,6 +372,7 @@ impl AcsCli {
         println!("Availables command when disconnected:");
         println!(" - ls: List connected CPEs to this ACS");
         println!(" - cd|connect [SN] : Connect to CPE specified by this Serial Number");
+        println!(" - monitor : Monitor all Inform messages received by ACS");
         println!();
         println!("Availables command when connected to a CPE:");
         println!(" - disconnect :  Disconnect from the current CPE");
@@ -420,6 +433,9 @@ impl AcsCli {
             }
             "upgrade" => {
                 self.upgrade(arg1).await?;
+            }
+            "monitor" => {
+                self.monitor().await?;
             }
             "help" => {
                 self.help();
@@ -502,8 +518,10 @@ impl AcsCli {
             let cmd = args[0].as_str();
             suggestions = match self.connectedto {
                 Some(_) => match cmd {
-                    "get" | "set" | "cd" | "ls" => self.getset_suggestions(args).await?,
-                    "help" | "exit" | "disconnect" | "upgrade" => Vec::<String>::new(),
+                    "get" | "set" | "add" | "del" | "cd" | "ls" => {
+                        self.getset_suggestions(args).await?
+                    }
+                    "help" | "exit" | "disconnect" | "upgrade" | "monitor" => Vec::<String>::new(),
                     _ => Vec::<String>::new(),
                 },
                 None => match cmd {

@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 #[derive(Debug, Clone)]
 pub struct Connreq {
@@ -63,12 +63,13 @@ pub struct CPEController {
     _refcount: Arc<()>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Acs {
     pub config: db::AcsConfig,
     pub basicauth: String,
     pub cpe_list: HashMap<String, Arc<RwLock<CPE>>>,
     pub acsdir: std::path::PathBuf,
+    pub observers: broadcast::Sender<soap::Inform>,
 }
 
 impl Transfer {
@@ -187,20 +188,24 @@ impl CPEController {
 
 impl Acs {
     pub fn new(acsdir: &std::path::Path) -> Self {
-        let mut acs = Self::default();
-        acs.config = db::AcsConfig {
-            hostname: String::new(),
-            username: utils::random_password(),
-            password: utils::random_password(),
-            autocert: true,
-            unsecure_address: String::from("[::0]:8080"),
-            identity_password: String::from("ACSRS"),
-            secure_address: String::from("[::0]:8443"),
-            management_address: String::from("127.0.0.1:8000"),
-        };
-        acs.basicauth = Self::basicauth(&acs.config.username, &acs.config.password);
-        acs.acsdir = acsdir.to_path_buf();
-        acs
+        let username = utils::random_password();
+        let password = utils::random_password();
+        Self {
+            config: db::AcsConfig {
+                hostname: String::new(),
+                username: username.clone(),
+                password: password.clone(),
+                autocert: true,
+                unsecure_address: String::from("[::0]:8080"),
+                identity_password: String::from("ACSRS"),
+                secure_address: String::from("[::0]:8443"),
+                management_address: String::from("127.0.0.1:8000"),
+            },
+            basicauth: Self::basicauth(&username, &password),
+            cpe_list: HashMap::new(),
+            acsdir: acsdir.to_path_buf(),
+            observers: broadcast::Sender::new(100),
+        }
     }
 
     fn basicauth(username: &str, password: &str) -> String {
@@ -235,10 +240,13 @@ impl Acs {
     pub async fn restore(acsdir: &std::path::Path) -> Result<Acs> {
         let savefile = acsdir.join("config.toml");
         let db = db::Acs::restore(&savefile)?;
-        let mut acs = Self::default();
-        acs.config = db.config.clone();
-        acs.basicauth = Acs::basicauth(&acs.config.username, &acs.config.password);
-        acs.acsdir = acsdir.to_path_buf();
+        let mut acs = Self {
+            config: db.config.clone(),
+            basicauth: Acs::basicauth(&db.config.username, &db.config.password),
+            cpe_list: HashMap::new(),
+            acsdir: acsdir.to_path_buf(),
+            observers: broadcast::Sender::new(100),
+        };
 
         for elem in &db.cpe {
             let mut cpe = CPE::default();
@@ -294,6 +302,10 @@ impl Acs {
             self.config.password
         );
         warn!("");
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<soap::Inform> {
+        self.observers.subscribe()
     }
 }
 
