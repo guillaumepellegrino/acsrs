@@ -566,6 +566,9 @@ impl AcsCli {
                         println!("Error: {:?}", err);
                     }
                 },
+                Action::NoAction => {
+                    self.exit = true;
+                },
             }
             if self.exit {
                 break;
