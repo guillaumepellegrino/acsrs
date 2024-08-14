@@ -200,6 +200,7 @@ impl Acs {
                 identity_password: String::from("ACSRS"),
                 secure_address: String::from("[::0]:8443"),
                 management_address: String::from("127.0.0.1:8000"),
+                noauth: false
             },
             basicauth: Self::basicauth(&username, &password),
             cpe_list: HashMap::new(),
