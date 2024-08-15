@@ -568,7 +568,7 @@ impl AcsCli {
                 },
                 Action::NoAction => {
                     self.exit = true;
-                },
+                }
             }
             if self.exit {
                 break;
