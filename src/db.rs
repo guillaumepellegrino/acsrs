@@ -38,6 +38,7 @@ pub struct AcsConfig {
     pub secure_address: String,
     pub unsecure_address: String,
     pub management_address: String,
+    pub noauth: bool,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize, Serialize)]

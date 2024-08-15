@@ -432,9 +432,11 @@ impl TR069Session {
         req: &mut Request<IncomingBody>,
     ) -> Result<Response<Full<Bytes>>> {
         self.counter += 1;
-
-        if let Some(reply) = self.authorization_error(req).await {
-            return reply;
+        let noauth = self.acs.read().await.config.noauth;
+        if !noauth {
+            if let Some(reply) = self.authorization_error(req).await {
+                return reply;
+            }
         }
 
         let command = utils::req_path(req, 1);
